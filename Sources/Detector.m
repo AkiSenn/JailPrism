@@ -14,7 +14,6 @@
 #import <grp.h>
 #import <errno.h>
 #import <mach/mach.h>
-#import <servers/bootstrap.h>
 #import <TargetConditionals.h>
 #if __has_feature(ptrauth_calls)
 #import <ptrauth.h>
@@ -176,11 +175,16 @@ static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray
     free(procs);
     [rows addObject:Finding(@"process:visibility",@"visibility",IGT(@"Process enumeration"),procOK ? @"info" : @"unknown",0,IGT(@"Only known jailbreak daemon matches are retained. Process lists may be filtered."),NO,@"")];
     [operations addObject:@"bootstrap_look_up"];
+    typedef kern_return_t (*BootstrapLookup)(mach_port_t,const char *,mach_port_t *);
+    BootstrapLookup lookup = (BootstrapLookup)dlsym(RTLD_DEFAULT,"bootstrap_look_up");
+    mach_port_t bootstrap = MACH_PORT_NULL;
+    kern_return_t bootstrapResult = task_get_bootstrap_port(mach_task_self(),&bootstrap);
     for (NSString *service in @[@"org.coolstar.jailbreakd",@"com.opa334.jailbreakd"]) {
-        mach_port_t port = MACH_PORT_NULL; kern_return_t rc = bootstrap_look_up(bootstrap_port,service.UTF8String,&port);
+        mach_port_t port = MACH_PORT_NULL; kern_return_t rc = lookup && bootstrapResult==KERN_SUCCESS ? lookup(bootstrap,service.UTF8String,&port) : KERN_FAILURE;
         if (port != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(),port);
         [rows addObject:Finding([@"service:" stringByAppendingString:service],@"injection",IGT(@"Jailbreak service lookup"),rc==KERN_SUCCESS ? @"hit" : @"unknown",35,[NSString stringWithFormat:@"%@ (Mach=%d)",service,rc],YES,[service hasPrefix:@"org.coolstar"] ? @"rootful" : @"")];
     }
+    if (bootstrap != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(),bootstrap);
     [operations addObject:@"Bounded bootstrap enumeration"]; Enumerate(rows);
 #if defined(__arm64__) && !TARGET_OS_SIMULATOR
     [operations addObject:@"Read-only ARM64 kernel probes"];
