@@ -278,7 +278,9 @@ static BOOL InjectedPath(NSString *path) {
     [rows addObject:Finding(@"identity:scope",@"observer",@"用户组异常行为范围",@"info",0,@"显示本进程的 root 身份、有效身份差异和特权附加组，以及路径拥有者。不是系统历史审计，不把 root/mobile 系统账户的正常存在当异常。",NO)];
     // Architecture is reported from our Mach-O slice, not device marketing names.
     const struct mach_header *header = _dyld_get_image_header(0);
-    NSString *arch = header && (header->cpusubtype & ~CPU_SUBTYPE_MASK) == CPU_SUBTYPE_ARM64E ? @"arm64e" : @"arm64";
+    NSString *arch = @"unknown";
+    if (header && header->cputype == CPU_TYPE_ARM64) arch = (header->cpusubtype & ~CPU_SUBTYPE_MASK) == CPU_SUBTYPE_ARM64E ? @"arm64e" : @"arm64";
+    else if (header && header->cputype == CPU_TYPE_X86_64) arch = @"x86_64";
 #if TARGET_OS_SIMULATOR
     // Simulator credentials, paths and libraries belong to macOS, not a physical iOS device.
     NSMutableArray *simulatorRows = [NSMutableArray new];
@@ -297,7 +299,7 @@ static BOOL InjectedPath(NSString *path) {
 #endif
     NSDictionary *score = IGScore(rows);
     return @{@"schemaVersion":@1,@"appVersion":@"1.0.0",@"timestamp":@([[NSDate date] timeIntervalSince1970]),
-             @"device":@{@"model":UIDevice.currentDevice.model,@"system":UIDevice.currentDevice.systemVersion,@"binaryArchitecture":arch,@"simulator":@(TARGET_OS_SIMULATOR)},
+             @"device":@{@"model":UIDevice.currentDevice.model,@"system":UIDevice.currentDevice.systemVersion,@"binaryArchitecture":arch,@"simulator":@((BOOL)TARGET_OS_SIMULATOR)},
              @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"supplementaryGroups":groupData},
              @"score":score,@"findings":rows,
              @"limitations":@[@"隐藏层可拦截文件/注册/动态库查询；未命中不保证未越狱。",@"私有 API 在未来系统可能不可用；不可判定项阻止完美评级。",@"巨魔检测不等同越狱；本 App 主动声明的权限不扣分。",@"证据可表示残留，不能仅凭工具安装状态判断当前越狱运行状态。"]};
