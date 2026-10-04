@@ -4,18 +4,19 @@
 
 ## 反馈漏检、误报或崩溃
 
-请在 [Issues](https://github.com/AkiSenn/IOSGuard/issues) 中说明复现步骤，并提供以下信息：
+请在 [Issues](https://github.com/AkiSenn/JailPrism/issues) 中说明复现步骤，并提供以下信息：
 
 | 信息 | 示例 |
 | :--- | :--- |
-| 应用版本 | 1.1.0 |
+| 应用版本 | 1.2.0 |
 | 设备与系统 | iPhone XR / iOS 14.8 |
 | 越狱工具与版本 | Taurine、unc0ver、Dopamine 或 RootHide 变体 |
 | 安装方式 | TrollStore 或证书安装 |
 | 隐藏与注入配置 | Shadow、Choicy、是否允许向检测器注入 |
 | 私有 API | 开启或关闭 |
+| 专业用户模式 | 开启或关闭 |
 | 预期与实际结果 | 预期识别的类型、实际评分及命中项 |
-| 检测报告 | 对应本次结果的 `IOSGuard-report.json` |
+| 检测报告 | 对应本次结果的 `JailPrism-report.json` |
 
 复现界面问题时补充语言选择与截图。报告中的路径和身份信息可按需移除无关内容；保留涉及误报或漏检的检测 ID、状态与通道结果，方便定位。
 

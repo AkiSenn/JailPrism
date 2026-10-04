@@ -4,9 +4,9 @@
 
 ## 安装
 
-1. 在 [GitHub Actions](https://github.com/AkiSenn/IOSGuard/actions/workflows/build.yml) 选择成功完成的运行。
-2. 下载 `IOSGuard-unsigned-iOS14-arm64-arm64e` 构建产物并解压。
-3. 将 `IOSGuard-unsigned.ipa` 分享给 TrollStore 安装。
+1. 在 [GitHub Actions](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) 选择成功完成的运行。
+2. 下载 `JailPrism-unsigned-iOS14-arm64-arm64e` 构建产物并解压。
+3. 将 `JailPrism-unsigned.ipa` 分享给 TrollStore 安装。
 
 应用最低支持 iOS 14.0，IPA 包含 arm64 与 arm64e。应用支持范围与 TrollStore 可安装范围分别由应用和安装器决定；并非所有 iOS 14+ 系统都支持 TrollStore。
 
@@ -16,12 +16,32 @@
 
 启动应用会自动检测。主页顶部依次显示设备型号、硬件标识、iOS 版本与构建号、检测完成时间（含时区）、检测耗时、评分和疑似越狱类型。点击左上角「重新检测」刷新结果。
 
+专业模式提供以下筛选；普通模式不显示该控件。
+
 | 筛选 | 显示内容 |
 | :--- | :--- |
 | 全部 | 本次检测的所有项目 |
 | 命中 | 检测到特征的项目 |
 | 不确定 | 权限受限、接口不可用或其他无法判定的项目 |
 | 用户组 | 当前检测器进程的用户、主组与附加组检查 |
+
+普通模式默认显示设备信息、评分与疑似环境，底部不显示技术注释。巨魔命中时显示「检测出TrollStore巨魔」，越狱显示具体类型，如 Rootless（无根越狱）。
+
+商店和注入动态库分别以名称列表展示，重复名称合并；后续行与首行名称对齐。例如：
+
+```text
+检测出Cydia
+      Sileo
+
+检测出Choicy.dylib
+      ShadowCore.dylib
+```
+
+真实界面通过布局对齐，不依赖固定空格。动态库列表来自已加载镜像或函数来源中的已知注入特征，不把文件存在直接当成已加载，也不提供签名合法性鉴定。
+
+## 专业用户模式
+
+打开 **齿轮 → 显示模式 → 专业用户模式**。默认关闭，选择会保存。开启后主页显示全部检测项、路径、权重、评分规则、状态和技术说明，并可使用下方筛选。切换展示模式复用本次报告，不自动启用私有 API，也不会改变评分。
 
 每个检测项展示状态、权重与证据。单项权重不是最终扣分，分组上限和关联抵扣会影响实际评分，见[评分机制](DETECTION.md#评分机制)。
 
@@ -54,7 +74,7 @@
 
 ## 导出报告
 
-点击右上角 **分享按钮**，保存或分享 `IOSGuard-report.json`。
+点击右上角 **分享按钮**，保存或分享 `JailPrism-report.json`。
 
 | 字段 | 内容 |
 | :--- | :--- |
@@ -65,6 +85,8 @@
 | `score` | 评分、分组扣分、关联抵扣及各证据的实际贡献 |
 | `classification` | 疑似类型、类型证据 ID 与巨魔识别状态 |
 | `findings` | 每项状态、权重、证据；路径项还包含交叉查询通道 |
+| `simpleSummary` | 普通模式的分类名称列表与对应证据 ID |
+| `presentationMode` | 导出时的普通／专业展示模式 |
 
 报告结构版本为 `schema: 2`。`scanConfiguration.privateOperationsAttempted` 可用于确认扩展检测是否实际调用。
 
@@ -75,3 +97,7 @@
 记录系统版本、设备型号、越狱工具、安装方式、隐藏插件与私有 API 开关状态，并导出本次 JSON 报告。反馈方式见[贡献与反馈](../CONTRIBUTING.md)。
 
 模拟器的真机检查项统一显示不可判定、权重为 0；模拟器结果不能用于判断真实设备是否越狱。
+
+## 致谢与项目说明
+
+设置页最后一栏列出 Codex、GPT-6.1 Sol 和 OpenAI 图标，并说明本项目由 AI 生成、检测可能误报或漏检。普通主页不显示底部技术注释或这段说明。

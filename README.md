@@ -1,8 +1,10 @@
+> **本项目由 AI 生成。** 如果不喜欢 AI 生成的软件，请勿使用。检测结果仅供参考，可能存在误报或漏检，无法保证识别所有隐藏环境。
+
 <div align="center">
 
-<img src="Artwork/AppIcon-white.png" width="112" alt="IOSGuard 应用图标">
+<img src="Artwork/AppIcon-white.png" width="112" alt="JailPrism 应用图标">
 
-# IOSGuard · 环境哨兵
+# JailPrism
 
 **查看 iPhone 环境，用证据解释每一次判定。**
 
@@ -11,15 +13,16 @@
 ![iOS](https://img.shields.io/badge/iOS-14.0%2B-007AFF?style=flat-square)
 ![Architecture](https://img.shields.io/badge/Architecture-arm64%20%7C%20arm64e-555555?style=flat-square)
 ![Objective-C](https://img.shields.io/badge/Language-Objective--C-438EFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.1.0-00A896?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.2.0-00A896?style=flat-square)
+[![Build](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml/badge.svg)](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml)
 
-[下载构建](https://github.com/AkiSenn/IOSGuard/actions/workflows/build.yml) · [使用指南](docs/USAGE.md) · [检测原理](docs/DETECTION.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/AkiSenn/IOSGuard/issues)
+[下载构建](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) · [使用指南](docs/USAGE.md) · [检测原理](docs/DETECTION.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/AkiSenn/JailPrism/issues)
 
 </div>
 
 ## 项目介绍
 
-IOSGuard 在设备上检查可见的文件、URL、注入库、进程身份与运行环境，显示疑似越狱类型和对应证据。检测结果分为「完美」「疑似」「异常环境」，每项检查的状态、权重及评分依据都可查看。
+JailPrism 在设备上检查可见的文件、URL、注入库、进程身份与运行环境，显示疑似越狱类型和对应证据。默认普通模式展示设备信息、评分、疑似环境及商店／注入库名称；专业模式保留全部检测项目与技术注释。
 
 应用使用 UIKit 与 Objective-C 实现，无第三方代码依赖。检测在本地运行，应用不联网；JSON 报告由用户主动分享导出。
 
@@ -27,24 +30,28 @@ IOSGuard 在设备上检查可见的文件、URL、注入库、进程身份与�
 
 <table>
   <tr>
-    <th>检测结果</th>
+    <th>普通模式</th>
+    <th>专业模式</th>
     <th>语言与检测设置</th>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/results.png" width="260" alt="中文检测结果：设备信息、检测时间、评分与证据列表"></td>
-    <td align="center"><img src="docs/images/settings.png" width="260" alt="二级设置：语言选择与私有 API 开关"></td>
+    <td align="center"><img src="docs/images/results.png" width="220" alt="普通模式：设备信息、评分、环境及逐行对齐的名称列表"></td>
+    <td align="center"><img src="docs/images/professional.png" width="220" alt="专业模式：全部检测项目、路径、权重和技术注释"></td>
+    <td align="center"><img src="docs/images/settings.png" width="220" alt="二级设置：语言、专业用户模式及独立私有 API 开关"></td>
   </tr>
 </table>
 
-截图来自模拟器，用于展示界面。模拟器中的真机检测项显示「不可判定」，不代表真实设备检测结果。
+截图来自模拟器。普通模式截图使用明确标识的 UI 示例数据展示名称换行，属于界面预览；专业模式的实际模拟器检测项显示「不可判定」。这些截图不代表真机检测结果。
 
 ## 主要功能
 
 | 功能 | 内容 |
 | :--- | :--- |
 | 设备概览 | 具体 iPhone 型号、硬件标识、iOS 版本、构建号、检测时间与耗时 |
+| 普通／专业模式 | 普通模式简洁展示结论，专业模式显示全部说明；开关默认关闭 |
 | 越狱类型 | 根据证据显示疑似 rootful、rootless、roothide；支持多种类型同时展示 |
 | 注入框架 | 覆盖 libhooker、Substitute、MobileSubstrate 与 ElleKit 相关特征 |
+| 名称列表 | Cydia／Sileo／Zebra 与已知注入动态库逐行显示，同名证据合并 |
 | 巨魔检测 | 安装标记、工具注册与 URL 处理者；苹果放大镜本身不作为巨魔证据 |
 | 身份检查 | UID／GID、有效身份与附加用户组异常 |
 | 扩展检测 | 私有 API 开关默认关闭，开启后尝试更多只读检测 |
@@ -55,9 +62,9 @@ IOSGuard 在设备上检查可见的文件、URL、注入库、进程身份与�
 
 ## 下载与安装
 
-1. 打开 [GitHub Actions 构建页面](https://github.com/AkiSenn/IOSGuard/actions/workflows/build.yml)，选择成功完成的运行。
-2. 下载 **Artifacts** 中的 `IOSGuard-unsigned-iOS14-arm64-arm64e`。
-3. 解压 ZIP，找到 `IOSGuard-unsigned.ipa`，通过 TrollStore 安装。
+1. 打开 [GitHub Actions 构建页面](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml)，选择成功完成的运行。
+2. 下载 **Artifacts** 中的 `JailPrism-unsigned-iOS14-arm64-arm64e`。
+3. 解压 ZIP，找到 `JailPrism-unsigned.ipa`，通过 TrollStore 安装。
 4. 启动应用自动检测；点击右上角齿轮调整语言与私有 API 设置。
 
 | 项目 | 要求 |
@@ -65,6 +72,7 @@ IOSGuard 在设备上检查可见的文件、URL、注入库、进程身份与�
 | 最低系统 | iOS 14.0 |
 | 设备架构 | arm64、arm64e |
 | 分发文件 | 完全未签名 IPA，无 ad-hoc 签名、描述文件或内嵌 entitlement |
+| Bundle ID | `com.akisenn.JailPrism` |
 | 安装方式 | TrollStore；其支持的系统范围和安装权限由安装器决定 |
 
 构建产物保留 30 天。下载 Actions 产物需要登录有仓库访问权限的 GitHub 账户；过期后可重新构建。完整操作说明见[使用指南](docs/USAGE.md)。
@@ -98,3 +106,12 @@ bash scripts/build.sh
 ```
 
 Windows 用户可通过 GitHub Actions 编译，无需在本机安装 Xcode。CI 会验证评分与设置回归、语言资源、双架构未签名包，以及模拟器中的语言切换和模式开关；真机准确率需要安装实测。
+
+## 致谢
+
+<img src="Sources/Assets.xcassets/OpenAI-mark.imageset/OpenAI-mark.png" width="32" alt="OpenAI 图标">
+
+- [Codex](https://github.com/openai/codex)
+- GPT-6.1 Sol
+
+OpenAI 图标归 OpenAI 所有，取自其[官方 GitHub 组织](https://github.com/openai)，用于开发工具致谢，不代表官方背书。JailPrism 运行时不调用 AI 服务。
