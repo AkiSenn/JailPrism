@@ -5,4 +5,6 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT BOOL IGIsTrollStoreIdentifier(NSString *identifier);
 FOUNDATION_EXPORT NSString *IGURLHandlerKind(NSArray<NSString *> *identifiers);
 FOUNDATION_EXPORT NSDictionary *IGScore(NSArray<NSDictionary *> *findings);
+FOUNDATION_EXPORT NSDictionary *IGClassification(NSArray<NSDictionary *> *findings);
+FOUNDATION_EXPORT NSString *IGFamilyForPath(NSString *path);
 NS_ASSUME_NONNULL_END

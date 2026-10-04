@@ -15,11 +15,16 @@ def obj(name, body):
 
 sources = sorted((ROOT / 'Sources').iterdir())
 files, builds, resource_builds = [], [], []
-types = {'.m':'sourcecode.c.objc', '.h':'sourcecode.c.h', '.plist':'text.plist.xml', '.xcassets':'folder.assetcatalog'}
+types = {'.m':'sourcecode.c.objc', '.S':'sourcecode.asm', '.h':'sourcecode.c.h', '.plist':'text.plist.xml', '.xcassets':'folder.assetcatalog'}
 for p in sources:
+    if p.suffix == '.lproj':
+        fid = obj('file:'+p.name, f'isa = PBXFileReference; lastKnownFileType = folder; path = {q("Sources/"+p.name)}; sourceTree = SOURCE_ROOT;')
+        files.append(fid)
+        resource_builds.append(obj('build:'+p.name, f'isa = PBXBuildFile; fileRef = {fid};'))
+        continue
     fid = obj('file:'+p.name, f"isa = PBXFileReference; lastKnownFileType = {types[p.suffix]}; path = {q('Sources/'+p.name)}; sourceTree = SOURCE_ROOT;")
     files.append(fid)
-    if p.suffix == '.m':
+    if p.suffix in ('.m', '.S'):
         builds.append(obj('build:'+p.name, f"isa = PBXBuildFile; fileRef = {fid};"))
     elif p.suffix == '.xcassets':
         resource_builds.append(obj('build:'+p.name, f"isa = PBXBuildFile; fileRef = {fid};"))
@@ -39,7 +44,7 @@ for config in ['Debug','Release']:
 pc = obj('project-configs', f'isa = XCConfigurationList; buildConfigurations = ({",".join(project_configs)},); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;')
 tc = obj('target-configs', f'isa = XCConfigurationList; buildConfigurations = ({",".join(target_configs)},); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;')
 target = obj('target', f'isa = PBXNativeTarget; buildConfigurationList = {tc}; buildPhases = ({phase},{frameworks},{resources},); buildRules = (); dependencies = (); name = IOSGuard; productName = IOSGuard; productReference = {product}; productType = "com.apple.product-type.application";')
-project = obj('project', f'isa = PBXProject; attributes = {{ LastUpgradeCheck = 1600; }}; buildConfigurationList = {pc}; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans",en,Base,); mainGroup = {root}; productRefGroup = {products}; projectDirPath = ""; projectRoot = ""; targets = ({target},);')
+project = obj('project', f'isa = PBXProject; attributes = {{ LastUpgradeCheck = 1600; }}; buildConfigurationList = {pc}; compatibilityVersion = "Xcode 14.0"; developmentRegion = en_US; hasScannedForEncodings = 0; knownRegions = (en_US,zh_Hans_CN,Base,); mainGroup = {root}; productRefGroup = {products}; projectDirPath = ""; projectRoot = ""; targets = ({target},);')
 out = ROOT / 'IOSGuard.xcodeproj'
 out.mkdir(exist_ok=True)
 (out/'project.pbxproj').write_text('// !$*UTF8*$!\n{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {\n'+'\n'.join(objects)+f'\n}}; rootObject = {project}; }}\n', encoding='utf-8')

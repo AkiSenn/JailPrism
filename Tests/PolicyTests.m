@@ -1,4 +1,5 @@
 #import "Policy.h"
+#import "Localization.h"
 #include <stdlib.h>
 static void Check(BOOL condition,NSString *message) { if (!condition) { NSLog(@"FAIL: %@",message); exit(1); } }
 static NSDictionary *F(NSString *key,NSString *group,NSString *status,int weight,BOOL jb) {
@@ -11,12 +12,12 @@ int main(void) { @autoreleasepool {
     Check([IGURLHandlerKind(@[@"com.example.trollstore.fake"]) isEqual:@"other"],@"no substring false positive");
     Check([IGURLHandlerKind(@[]) isEqual:@"unknown"],@"missing handler is not clean");
     NSDictionary *clean = IGScore(@[F(@"1",@"rootful",@"clear",35,YES)]);
-    Check([clean[@"score"] intValue]==100 && [clean[@"level"] isEqual:@"完美"] && ![clean[@"jailbreakEvidence"] boolValue],@"clear findings");
+    Check([clean[@"score"] intValue]==100 && [clean[@"levelCode"] isEqual:@"perfect"] && ![clean[@"jailbreakEvidence"] boolValue],@"clear findings");
     NSDictionary *unknown = IGScore(@[F(@"1",@"visibility",@"unknown",0,NO)]);
-    Check([unknown[@"score"] intValue]==100 && [unknown[@"level"] isEqual:@"疑似"],@"unknown prevents perfect without fabricated risk");
+    Check([unknown[@"score"] intValue]==100 && [unknown[@"levelCode"] isEqual:@"suspected"],@"unknown prevents perfect without fabricated risk");
     NSArray *ts = @[F(@"1",@"trollstore",@"hit",12,NO),F(@"2",@"trollstore",@"hit",12,NO),F(@"3",@"observer",@"info",40,NO)];
     NSDictionary *troll = IGScore(ts);
-    Check([troll[@"score"] intValue]==85 && [troll[@"level"] isEqual:@"疑似"] && ![troll[@"jailbreakEvidence"] boolValue],@"TrollStore alone capped and not jailbreak");
+    Check([troll[@"score"] intValue]==85 && [troll[@"levelCode"] isEqual:@"suspected"] && ![troll[@"jailbreakEvidence"] boolValue],@"TrollStore alone capped and not jailbreak");
     NSDictionary *duplicate = IGScore(@[F(@"1",@"rootful",@"hit",35,YES),F(@"1",@"rootful",@"hit",35,YES)]);
     Check([duplicate[@"risk"] intValue]==35 && [duplicate[@"hitCount"] intValue]==1,@"deduplicate probe ID");
     NSArray *families = @[F(@"1",@"rootful",@"hit",35,YES),F(@"2",@"rootless",@"hit",35,YES),F(@"3",@"roothide",@"hit",40,YES)];
@@ -24,10 +25,34 @@ int main(void) { @autoreleasepool {
     Check([related[@"risk"] intValue]==45 && [related[@"correlationDiscount"] intValue]==65,@"correlated files capped together");
     Check([IGScore([[families reverseObjectEnumerator] allObjects])[@"risk"] isEqual:related[@"risk"]],@"score invariant to order");
     NSDictionary *boundary = IGScore(@[F(@"1",@"identity",@"hit",29,NO)]);
-    Check([boundary[@"level"] isEqual:@"疑似"],@"risk 29 boundary");
-    Check([IGScore(@[F(@"1",@"identity",@"hit",30,NO)])[@"level"] isEqual:@"异常环境"],@"risk 30 boundary");
+    Check([boundary[@"levelCode"] isEqual:@"suspected"],@"risk 29 boundary");
+    Check([IGScore(@[F(@"1",@"identity",@"hit",30,NO)])[@"levelCode"] isEqual:@"abnormal"],@"risk 30 boundary");
     NSDictionary *saturated = IGScore([families arrayByAddingObjectsFromArray:@[F(@"4",@"identity",@"hit",40,NO),F(@"5",@"injection",@"hit",35,YES),F(@"6",@"runtime",@"hit",25,NO)]]);
     Check([saturated[@"score"] intValue]==0,@"score floor");
     Check([IGScore(@[F(@"1",@"rootful",@"hit",-5,YES)])[@"risk"] intValue]==0,@"negative weights ignored");
-    NSLog(@"All 15 policy regressions passed.");
+    Check([IGClassification(ts)[@"primary"] isEqual:@"trollstore"] && [IGClassification(ts)[@"types"] count]==0,@"TrollStore is not a jailbreak family");
+    Check([IGClassification(families)[@"types"] count]==3 && [IGClassification(families)[@"mixed"] boolValue],@"multiple families preserved without guessing one");
+    Check([IGClassification(@[F(@"1",@"rootful",@"unknown",35,YES)])[@"types"] count]==0,@"denied/unknown does not classify");
+    Check([IGClassification(@[F(@"1",@"runtime",@"hit",15,NO)])[@"types"] count]==0,@"installed Sileo or Dopamine without a family path is ambiguous");
+    Check([IGClassification(@[F(@"1",@"injection",@"hit",35,YES)])[@"primary"] isEqual:@"unspecified"],@"generic injection does not fabricate a family");
+    NSMutableDictionary *hint = [F(@"h",@"injection",@"hit",35,YES) mutableCopy]; hint[@"familyHint"]=@"rootful";
+    Check([IGClassification(@[hint,hint])[@"evidenceCounts"][@"rootful"] intValue]==1,@"family hint and duplicate evidence");
+    Check([IGFamilyForPath(@"/var/jb/usr/lib/libellekit.dylib") isEqual:@"rootless"],@"Dopamine ElleKit rootless path");
+    Check([IGFamilyForPath(@"/var/containers/Bundle/Application/.jbroot-123/usr/lib/libellekit.dylib") isEqual:@"roothide"],@"RootHide ElleKit randomized path");
+    Check([IGFamilyForPath(@"/usr/lib/libhooker.dylib") isEqual:@"rootful"],@"Taurine libhooker path");
+    Check([IGFamilyForPath(@"/usr/lib/substitute-loader.dylib") isEqual:@"rootful"],@"unc0ver Substitute retained");
+    Check([IGScore(@[F(@"off",@"observer",@"skipped",35,YES)])[@"skippedCount"] intValue]==1 && [IGScore(@[F(@"off",@"observer",@"skipped",35,YES)])[@"unknownCount"] intValue]==0,@"disabled checks are skipped without score impact");
+    Check([IGResolvedLanguage(@[@"zh-Hant-HK"],@"system") isEqual:@"zh_Hans_CN"],@"Traditional Hong Kong maps to simplified resource");
+    Check([IGResolvedLanguage(@[@"zh-Hant-TW"],@"system") isEqual:@"zh_Hans_CN"],@"Traditional Taiwan maps to simplified resource");
+    Check([IGResolvedLanguage(@[@"zh-Hans-CN"],@"system") isEqual:@"zh_Hans_CN"],@"Simplified Chinese automatic");
+    Check([IGResolvedLanguage(@[@"en-GB"],@"system") isEqual:@"en_US"],@"English automatic");
+    Check([IGResolvedLanguage(@[@"ja-JP"],@"system") isEqual:@"en_US"],@"unsupported language fallback");
+    Check([IGResolvedLanguage(@[@"zh-Hant-TW"],@"en_US") isEqual:@"en_US"],@"manual English override");
+    Check([IGResolvedLanguage(@[@"en-US"],@"zh_Hans_CN") isEqual:@"zh_Hans_CN"],@"manual Chinese override");
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"IGPrivateAPIEnabled"]; IGRegisterSettings();
+    Check(!IGPrivateAPIEnabled(),@"private APIs default off");
+    [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"IGPrivateAPIEnabled"]; IGRegisterSettings();
+    Check(IGPrivateAPIEnabled(),@"registration preserves user preference");
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"IGPrivateAPIEnabled"];
+    NSLog(@"All 35 policy and settings regressions passed.");
 } return 0; }

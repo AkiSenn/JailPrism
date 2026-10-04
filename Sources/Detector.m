@@ -1,307 +1,265 @@
 #import "Detector.h"
 #import "Policy.h"
+#import "Localization.h"
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
-#import <mach-o/loader.h>
 #import <sys/stat.h>
 #import <sys/sysctl.h>
 #import <sys/mount.h>
 #import <unistd.h>
+#import <fcntl.h>
 #import <pwd.h>
 #import <grp.h>
 #import <errno.h>
+#import <mach/mach.h>
+#import <servers/bootstrap.h>
 #import <TargetConditionals.h>
 #if __has_feature(ptrauth_calls)
 #import <ptrauth.h>
 #endif
+#if defined(__arm64__) && !TARGET_OS_SIMULATOR
+extern long IGKernelReadOpen(const char *path);
+extern void IGKernelReadClose(int fd);
+#endif
 
 static NSDictionary *Finding(NSString *key, NSString *group, NSString *title, NSString *status,
-                             NSInteger weight, NSString *detail, BOOL jailbreak) {
-    return @{@"id":key, @"group":group, @"title":title, @"status":status,
-             @"weight":@(weight), @"detail":detail ?: @"", @"jailbreakEvidence":@(jailbreak)};
+                             NSInteger weight, NSString *detail, BOOL jailbreak, NSString *family) {
+    return @{@"id":key,@"group":group,@"title":title,@"status":status,@"weight":@(weight),
+             @"detail":detail ?: @"",@"jailbreakEvidence":@(jailbreak),@"familyHint":family ?: @""};
 }
-
-// Do not treat a denied/failed lookup as a clean result. Even ENOENT may be hidden by a hook.
-static NSDictionary *Probe(NSString *path) {
-    struct stat info;
-    int rc = lstat(path.fileSystemRepresentation, &info);
-    int err = rc ? errno : 0;
-    NSString *state = rc == 0 ? @"hit" : ((err == ENOENT || err == ENOTDIR) ? @"clear" : @"unknown");
-    NSString *detail = rc ? [NSString stringWithFormat:@"%@\nlstat: %s (%d)",path,strerror(err),err]
-                         : [NSString stringWithFormat:@"%@\nuid=%u gid=%u mode=%04o%@",path,info.st_uid,info.st_gid,
-                            info.st_mode & 07777, S_ISLNK(info.st_mode) ? @" · 符号链接" : @""];
-    if (!rc && S_ISLNK(info.st_mode)) {
-        char target[PATH_MAX+1];
-        ssize_t len = readlink(path.fileSystemRepresentation, target, PATH_MAX);
-        if (len >= 0) { target[len] = 0; detail = [detail stringByAppendingFormat:@"\n→ %s",target]; }
+static NSString *ErrorState(int error) { return error == 0 ? @"hit" : ((error == ENOENT || error == ENOTDIR) ? @"clear" : @"unknown"); }
+static NSDictionary *Channel(NSString *api,int error) { return @{@"api":api,@"status":ErrorState(error),@"errno":@(error)}; }
+static NSDictionary *Probe(NSString *path, BOOL extended) {
+    const char *p = path.fileSystemRepresentation;
+    struct stat st = {0}; NSMutableArray *channels = [NSMutableArray new];
+    int e = lstat(p,&st) == 0 ? 0 : errno; [channels addObject:Channel(@"lstat",e)];
+    struct stat other; e = stat(p,&other) == 0 ? 0 : errno; [channels addObject:Channel(@"stat",e)];
+    e = access(p,F_OK) == 0 ? 0 : errno; [channels addObject:Channel(@"access",e)];
+    int fd = open(p,O_RDONLY|O_NONBLOCK|O_CLOEXEC); e = fd >= 0 ? 0 : errno;
+    [channels addObject:Channel(@"open-read",e)]; if (fd >= 0) close(fd);
+    BOOL fm = [NSFileManager.defaultManager fileExistsAtPath:path];
+    [channels addObject:@{@"api":@"FileManager",@"status":fm ? @"hit" : @"unavailable"}];
+    if (extended) {
+#if defined(__arm64__) && !TARGET_OS_SIMULATOR
+        long raw = IGKernelReadOpen(p);
+        [channels addObject:Channel(@"kernel-open-read",raw >= 0 ? 0 : (int)-raw)];
+        if (raw >= 0) IGKernelReadClose((int)raw);
+#endif
     }
-    return @{@"status":state, @"detail":detail};
+    BOOL hit = NO, unknown = NO;
+    NSMutableArray *lines = [NSMutableArray arrayWithObject:path];
+    for (NSDictionary *c in channels) {
+        hit |= [c[@"status"] isEqual:@"hit"]; unknown |= [c[@"status"] isEqual:@"unknown"];
+        [lines addObject:[NSString stringWithFormat:@"%@: %@%@",c[@"api"],IGText(c[@"status"]),c[@"errno"] ? [NSString stringWithFormat:@" (errno=%@)",c[@"errno"]] : @""]];
+    }
+    if ([channels[0][@"status"] isEqual:@"hit"]) {
+        [lines addObject:[NSString stringWithFormat:@"uid=%u gid=%u mode=%04o",st.st_uid,st.st_gid,st.st_mode&07777]];
+        if (S_ISLNK(st.st_mode)) { char target[PATH_MAX+1]; ssize_t n = readlink(p,target,PATH_MAX); if (n>=0) { target[n]=0; [lines addObject:[NSString stringWithFormat:@"→ %s",target]]; } }
+    }
+    return @{@"status":hit ? @"hit" : (unknown ? @"unknown" : @"clear"),@"detail":[lines componentsJoinedByString:@"\n"],@"channels":channels};
 }
-
-// Calling IMP with the exact object-return signature preserves arm64e pointer authentication.
-static id Call0(id object, NSString *name) {
-    SEL sel = NSSelectorFromString(name);
-    if (![object respondsToSelector:sel]) return nil;
-    return ((id (*)(id,SEL))objc_msgSend)(object,sel);
+static void AddPath(NSMutableArray *rows,NSString *path,NSString *group,NSInteger weight,BOOL extended) {
+    NSDictionary *p = Probe(path,extended);
+    NSMutableDictionary *f = [Finding([@"path:" stringByAppendingString:path],group,path.lastPathComponent,p[@"status"],weight,p[@"detail"],![group isEqual:@"trollstore"],group) mutableCopy];
+    f[@"channels"] = p[@"channels"]; [rows addObject:f];
+    BOOL kernel = NO, missingStat = NO, missingOpen = NO;
+    for (NSDictionary *c in p[@"channels"]) {
+        kernel |= [c[@"api"] isEqual:@"kernel-open-read"] && [c[@"status"] isEqual:@"hit"];
+        missingStat |= [c[@"api"] isEqual:@"lstat"] && [c[@"errno"] intValue] == ENOENT;
+        missingOpen |= [c[@"api"] isEqual:@"open-read"] && [c[@"errno"] intValue] == ENOENT;
+    }
+    if (kernel && missingStat && missingOpen) [rows addObject:Finding([@"inconsistency:" stringByAppendingString:path],@"injection",IGT(@"Conflicting file visibility"),@"hit",10,IGF(@"Kernel read succeeded while libc reported missing: %@. Filtering or a filesystem race is possible.",path),YES,group)];
 }
-static id Call1(id object, NSString *name, id argument) {
-    SEL sel = NSSelectorFromString(name);
-    if (![object respondsToSelector:sel]) return nil;
-    return ((id (*)(id,SEL,id))objc_msgSend)(object,sel,argument);
-}
-
-static NSString *UserName(uid_t uid) {
-    struct passwd *p = getpwuid(uid);
-    return p && p->pw_name ? [NSString stringWithUTF8String:p->pw_name] : @"未解析";
-}
-static NSString *GroupName(gid_t gid) {
-    struct group *g = getgrgid(gid);
-    return g && g->gr_name ? [NSString stringWithUTF8String:g->gr_name] : @"未解析";
-}
+static id Call0(id object,NSString *name) { SEL s = NSSelectorFromString(name); return [object respondsToSelector:s] ? ((id(*)(id,SEL))objc_msgSend)(object,s) : nil; }
+static id Call1(id object,NSString *name,id arg) { SEL s = NSSelectorFromString(name); return [object respondsToSelector:s] ? ((id(*)(id,SEL,id))objc_msgSend)(object,s,arg) : nil; }
+static NSString *UserName(uid_t uid) { struct passwd *p = getpwuid(uid); return p && p->pw_name ? @(p->pw_name) : IGT(@"Unresolved"); }
+static NSString *GroupName(gid_t gid) { struct group *g = getgrgid(gid); return g && g->gr_name ? @(g->gr_name) : IGT(@"Unresolved"); }
 static BOOL InjectedPath(NSString *path) {
-    NSString *p = path.lowercaseString;
-    for (NSString *s in @[@"/var/jb/", @".jbroot", @"mobilesubstrate", @"substitute", @"libhooker",
-                         @"ellekit", @"frida", @"libroothide", @"/tweakinject/", @"/tweakloader", @"/shadow.dylib"]) {
-        if ([p containsString:s]) return YES;
-    }
+    for (NSString *s in @[@"/var/jb/",@".jbroot",@"mobilesubstrate",@"substitute",@"libhooker",@"ellekit",@"frida",@"libroothide",@"/tweakinject/",@"tweakloader",@"shadowcore.dylib",@"shadow.dylib",@"choicy.dylib",@"/taurine/"])
+        if ([path.lowercaseString containsString:s]) return YES;
     return NO;
 }
 
-@implementation IGDetector
-+ (NSDictionary *)scanWithPublicURLs:(NSDictionary<NSString *,NSNumber *> *)publicURLs {
-    NSMutableArray *rows = [NSMutableArray new];
-    NSDictionary *paths = @{
-        @"rootful":@[@"/Applications/Cydia.app", @"/Applications/Sileo.app", @"/Library/MobileSubstrate/MobileSubstrate.dylib",
-                      @"/Library/MobileSubstrate/DynamicLibraries", @"/usr/lib/libsubstitute.dylib", @"/usr/lib/libhooker.dylib",
-                      @"/usr/bin/apt", @"/usr/bin/dpkg", @"/bin/bash", @"/etc/apt", @"/var/lib/dpkg/status", @"/.installed_unc0ver", @"/.bootstrapped_electra"],
-        @"rootless":@[@"/var/jb", @"/var/jb/usr/bin/dpkg", @"/var/jb/usr/lib/libellekit.dylib", @"/var/jb/Applications/Sileo.app", @"/var/jb/basebin", @"/private/preboot/jb"],
-        @"roothide":@[[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@".jbroot"], @"/usr/lib/libroothide.dylib"]
-    };
-    for (NSString *group in @[@"rootful", @"rootless", @"roothide"]) {
-        for (NSString *path in paths[group]) {
-            NSDictionary *p = Probe(path);
-            // A standalone rootless link or shell can be stale. Bootstrap-specific artifacts are stronger.
-            NSInteger weight = ([path isEqual:@"/var/jb"] || [path isEqual:@"/bin/bash"]) ? 20 : 35;
-            [rows addObject:Finding([@"path:" stringByAppendingString:path],group,path.lastPathComponent,p[@"status"],weight,p[@"detail"],YES)];
-        }
-    }
-
-    // Bounded single-level enumeration; no traversal into users' documents.
-    NSArray *parents = @[@"/var/containers/Bundle/Application", @"/var/mobile/Containers/Shared/AppGroup", @"/private/preboot"];
-    for (NSString *parent in parents) {
-        NSError *error = nil;
-        NSArray *children = [NSFileManager.defaultManager contentsOfDirectoryAtPath:parent error:&error];
-        NSString *group = [parent containsString:@"preboot"] ? @"rootless" : @"roothide";
-        if (!children) {
-            [rows addObject:Finding([@"enumerate:" stringByAppendingString:parent],group,@"根目录枚举",@"unknown",0,
-                                   [NSString stringWithFormat:@"%@\n%@",parent,error.localizedDescription ?: @"读取失败"],NO)];
-            continue;
-        }
-        NSUInteger matches = 0;
+static void Enumerate(NSMutableArray *rows) {
+    for (NSString *parent in @[@"/var/containers/Bundle/Application",@"/var/mobile/Containers/Shared/AppGroup",@"/private/preboot"]) {
+        NSError *error; NSArray *children = [NSFileManager.defaultManager contentsOfDirectoryAtPath:parent error:&error];
+        if (!children) { [rows addObject:Finding([@"enumerate:" stringByAppendingString:parent],@"visibility",IGT(@"Bootstrap directory enumeration"),@"unknown",0,[NSString stringWithFormat:@"%@\n%@ (%ld)",parent,error.domain,(long)error.code],NO,@"")]; continue; }
+        BOOL preboot = [parent containsString:@"preboot"]; NSUInteger n = 0;
         for (NSString *child in children) {
+            if (++n > 1024) break;
             NSString *path = [parent stringByAppendingPathComponent:child];
             if ([child hasPrefix:@".jbroot-"]) {
-                matches++;
-                NSDictionary *p = Probe(path);
-                // Require bootstrap corroboration, not the folder name alone.
-                BOOL bootstrap = [Probe([path stringByAppendingPathComponent:@"usr/bin/dpkg"])[@"status"] isEqual:@"hit"] ||
-                                 [Probe([path stringByAppendingPathComponent:@"basebin"])[@"status"] isEqual:@"hit"];
-                [rows addObject:Finding([@"jbroot:" stringByAppendingString:path],@"roothide",@"随机 jbroot 目录",@"hit",bootstrap ? 40 : 15,
-                                       [p[@"detail"] stringByAppendingFormat:@"\n引导目录佐证：%@",bootstrap ? @"有" : @"未取得；可能是残留"],bootstrap)];
+                BOOL bootstrap = [Probe([path stringByAppendingPathComponent:@"usr/bin/dpkg"],YES)[@"status"] isEqual:@"hit"] || [Probe([path stringByAppendingPathComponent:@"basebin"],YES)[@"status"] isEqual:@"hit"];
+                AddPath(rows,path,@"roothide",bootstrap ? 40 : 15,YES);
+                if (bootstrap) AddPath(rows,[path stringByAppendingPathComponent:@"basebin"],@"roothide",40,YES);
             }
-            if (![parent containsString:@"preboot"] && ![parent containsString:@"AppGroup"]) {
-                for (NSString *marker in @[@"_TrollStore", @"_TrollStoreLite"]) {
-                    NSString *mp = [path stringByAppendingPathComponent:marker];
-                    if ([Probe(mp)[@"status"] isEqual:@"hit"]) {
-                        [rows addObject:Finding([@"marker:" stringByAppendingString:mp],@"trollstore",@"巨魔安装标记",@"hit",12,mp,NO)];
+            if (!preboot && ![parent containsString:@"AppGroup"]) {
+                for (NSString *marker in @[@"_TrollStore",@"_TrollStoreLite",@"TrollStore.app"]) {
+                    NSString *p = [path stringByAppendingPathComponent:marker]; if ([Probe(p,YES)[@"status"] isEqual:@"hit"]) AddPath(rows,p,@"trollstore",12,YES);
+                }
+            }
+            if (preboot) {
+                NSArray *sub = [NSFileManager.defaultManager contentsOfDirectoryAtPath:path error:NULL]; NSUInteger k = 0;
+                for (NSString *name in sub) {
+                    if (++k > 64) break;
+                    if ([name isEqual:@"jb"] || [name hasPrefix:@"jb-"] || [name hasPrefix:@"dopamine-"]) {
+                        NSString *base = [path stringByAppendingPathComponent:name];
+                        if ([name hasPrefix:@"dopamine-"] || [name hasPrefix:@"jb-"]) base = [base stringByAppendingPathComponent:@"procursus"];
+                        AddPath(rows,base,@"rootless",20,YES);
+                        AddPath(rows,[base stringByAppendingPathComponent:@"usr/bin/dpkg"],@"rootless",35,YES);
+                        AddPath(rows,[base stringByAppendingPathComponent:@"basebin"],@"rootless",35,YES);
                     }
                 }
-                NSString *ts = [path stringByAppendingPathComponent:@"TrollStore.app"];
-                if ([Probe(ts)[@"status"] isEqual:@"hit"]) [rows addObject:Finding([@"tsbundle:" stringByAppendingString:ts],@"trollstore",@"巨魔 App 目录",@"hit",12,ts,NO)];
-            }
-            if ([parent containsString:@"preboot"]) {
-                NSDictionary *p = Probe([path stringByAppendingPathComponent:@"jb"]);
-                if ([p[@"status"] isEqual:@"hit"]) [rows addObject:Finding([@"preboot:" stringByAppendingString:path],@"rootless",@"Preboot 越狱引导目录",@"hit",35,p[@"detail"],YES)];
             }
         }
-        [rows addObject:Finding([@"enumerate:" stringByAppendingString:parent],group,@"根目录枚举",@"clear",0,
-                               [NSString stringWithFormat:@"%@\n读取 %lu 个目录项；随机 jbroot 匹配 %lu 个",parent,(unsigned long)children.count,(unsigned long)matches],NO)];
+        [rows addObject:Finding([@"enumerate:" stringByAppendingString:parent],@"visibility",IGT(@"Bootstrap directory enumeration"),children.count > 1024 ? @"unknown" : @"info",0,IGF(@"%@; inspected up to %lu entries. An empty match list does not prove absence.",parent,(unsigned long)MIN(children.count,1024)),NO,@"")];
     }
-
-    // LaunchServices lookup identifies the handler instead of trusting canOpenURL alone.
-    dlopen("/System/Library/Frameworks/CoreServices.framework/CoreServices", RTLD_LAZY);
-    dlopen("/System/Library/Frameworks/MobileCoreServices.framework/MobileCoreServices", RTLD_LAZY);
-    id workspace = nil;
-    NSArray *apps = nil;
+}
+static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray *operations) {
+    [operations addObject:@"LaunchServices"];
+    dlopen("/System/Library/Frameworks/CoreServices.framework/CoreServices",RTLD_LAZY);
+    dlopen("/System/Library/Frameworks/MobileCoreServices.framework/MobileCoreServices",RTLD_LAZY);
     @try {
-        workspace = Call0(NSClassFromString(@"LSApplicationWorkspace"), @"defaultWorkspace");
-        apps = Call0(workspace,@"allInstalledApplications");
-        if (![apps isKindOfClass:NSArray.class]) apps = Call0(workspace,@"allApplications");
-        for (NSString *scheme in @[@"apple-magnifier", @"trollstore"]) {
-            id handlers = Call1(workspace,@"applicationsAvailableForHandlingURLScheme:",scheme);
-            NSMutableArray *ids = [NSMutableArray new];
-            if ([handlers isKindOfClass:NSArray.class]) {
-                for (id proxy in handlers) {
-                    id identifier = Call0(proxy,@"applicationIdentifier");
-                    if ([identifier isKindOfClass:NSString.class]) [ids addObject:identifier];
-                }
-            }
+        id workspace = Call0(NSClassFromString(@"LSApplicationWorkspace"),@"defaultWorkspace");
+        for (NSString *scheme in @[@"apple-magnifier",@"trollstore"]) {
+            id handlers = Call1(workspace,@"applicationsAvailableForHandlingURLScheme:",scheme); NSMutableArray *ids = [NSMutableArray new];
+            if ([handlers isKindOfClass:NSArray.class]) for (id proxy in handlers) { id identifier = Call0(proxy,@"applicationIdentifier"); if ([identifier isKindOfClass:NSString.class]) [ids addObject:identifier]; }
             NSString *kind = IGURLHandlerKind(ids);
             NSString *state = [kind isEqual:@"trollstore"] ? @"hit" : ([kind isEqual:@"magnifier"] ? @"clear" : @"unknown");
-            if ([scheme isEqual:@"trollstore"] && [kind isEqual:@"unknown"] && [handlers isKindOfClass:NSArray.class] && ![publicURLs[scheme] boolValue]) state = @"clear";
-            NSString *detail = [NSString stringWithFormat:@"%@://\n公开 API 可打开：%@\n私有 API 处理者：%@\n%@",scheme,
-                                [publicURLs[scheme] boolValue] ? @"是" : @"否",ids.count ? [ids componentsJoinedByString:@", "] : @"未取得",
-                                [kind isEqual:@"magnifier"] ? @"苹果放大镜，未计为巨魔。" : @"只查询注册信息，不打开 URL，不触发安装。"];
-            [rows addObject:Finding([@"url:" stringByAppendingString:scheme],@"trollstore",@"巨魔 URL 处理者",state,12,detail,NO)];
+            if ([handlers isKindOfClass:NSArray.class] && !ids.count && ![urls[scheme] boolValue]) state = @"clear";
+            [rows addObject:Finding([@"handler:" stringByAppendingString:scheme],@"trollstore",IGT(@"TrollStore URL handler"),state,12,IGF(@"%@://; handlers: %@. Apple Magnifier alone is not TrollStore. URLs are never opened.",scheme,ids.count ? [ids componentsJoinedByString:@", "] : IGT(@"Unavailable")),NO,@"")];
         }
-    } @catch (NSException *exception) {
-        [rows addObject:Finding(@"ls:exception",@"visibility",@"LaunchServices 私有 API",@"unknown",0,exception.reason,NO)];
+        id apps = Call0(workspace,@"allInstalledApplications"); if (![apps isKindOfClass:NSArray.class]) apps = Call0(workspace,@"allApplications");
+        NSDictionary *tools = @{@"com.saurik.cydia":@"rootful",@"org.coolstar.taurine":@"rootful",@"science.xnu.undecimus":@"rootful",@"org.coolstar.sileostore":@"",@"xyz.willy.zebra":@"",@"com.opa334.dopamine":@"",@"com.roothide.bootstrap":@"roothide",@"com.aapl.relaxin":@"roothide",@"com.aapl.relaxin.lite":@"roothide"};
+        NSUInteger n = 0, relevant = 0;
+        if ([apps isKindOfClass:NSArray.class]) for (id proxy in apps) {
+            if (++n > 2048) break; id identifier = Call0(proxy,@"applicationIdentifier"); if (![identifier isKindOfClass:NSString.class]) continue;
+            BOOL ts = IGIsTrollStoreIdentifier(identifier); NSString *hint = tools[[identifier lowercaseString]];
+            if (!ts && hint == nil) continue; relevant++;
+            id url = Call0(proxy,@"bundleURL"); NSString *path = [url isKindOfClass:NSURL.class] ? [url path] : @"";
+            NSString *pathHint = IGFamilyForPath(path); if (pathHint.length) hint = pathHint;
+            [rows addObject:Finding([@"app:" stringByAppendingString:identifier],ts ? @"trollstore" : @"runtime",IGT(@"Registered environment tool"),@"hit",ts ? 12 : 15,IGF(@"%@\n%@\nAn installed tool does not prove an active jailbreak. Dopamine variants require path evidence.",identifier,path),NO,hint)];
+            if (!ts && path.length) AddPath(rows,[path stringByAppendingPathComponent:@".jbroot"],@"roothide",35,YES);
+        }
+        [rows addObject:Finding(@"ls:apps",@"visibility",IGT(@"Application registry"),![apps isKindOfClass:NSArray.class] || ![apps count] || [apps count]>2048 ? @"unknown" : @"info",0,IGF(@"Relevant registered tools: %lu. Results may be restricted or filtered.",(unsigned long)relevant),NO,@"")];
+    } @catch (NSException *ex) { [rows addObject:Finding(@"ls:exception",@"visibility",IGT(@"LaunchServices private API"),@"unknown",0,ex.name,NO,@"")]; }
+    [operations addObject:@"SecTask entitlements"];
+    typedef CFTypeRef (*TaskCreate)(CFAllocatorRef); typedef CFTypeRef (*TaskValue)(CFTypeRef,CFStringRef,CFErrorRef *);
+    TaskCreate create = (TaskCreate)dlsym(RTLD_DEFAULT,"SecTaskCreateFromSelf"); TaskValue value = (TaskValue)dlsym(RTLD_DEFAULT,"SecTaskCopyValueForEntitlement");
+    NSMutableArray *ents = [NSMutableArray new]; CFTypeRef task = create && value ? create(kCFAllocatorDefault) : NULL;
+    if (task) {
+        for (NSString *key in @[@"platform-application",@"com.apple.private.security.no-sandbox",@"com.apple.private.security.no-container",@"get-task-allow"]) {
+            CFErrorRef err = NULL; CFTypeRef v = value(task,(__bridge CFStringRef)key,&err);
+            [ents addObject:[NSString stringWithFormat:@"%@: %@",key,v ? CFBridgingRelease(v) : (err ? IGT(@"Unavailable") : IGT(@"Not declared"))]]; if (err) CFRelease(err);
+        } CFRelease(task);
     }
-    if ([apps isKindOfClass:NSArray.class] && apps.count) {
-        NSUInteger relevant = 0;
-        @try {
-            NSDictionary *jbIDs = @{@"com.saurik.Cydia":@"rootful", @"org.coolstar.SileoStore":@"rootless", @"xyz.willy.Zebra":@"rootless",
-                                    @"com.opa334.Dopamine":@"rootless", @"com.roothide.Bootstrap":@"roothide"};
-            for (id proxy in apps) {
-                NSString *identifier = Call0(proxy,@"applicationIdentifier");
-                if (![identifier isKindOfClass:NSString.class]) continue;
-                if (IGIsTrollStoreIdentifier(identifier) || jbIDs[identifier]) {
-                    relevant++;
-                    NSString *g = IGIsTrollStoreIdentifier(identifier) ? @"trollstore" : jbIDs[identifier];
-                    id bundleURL = Call0(proxy,@"bundleURL");
-                    [rows addObject:Finding([@"app:" stringByAppendingString:identifier],g,@"已注册环境工具",@"hit",IGIsTrollStoreIdentifier(identifier) ? 12 : 15,
-                                           [NSString stringWithFormat:@"%@\n%@\n已安装工具不代表越狱正在运行。",identifier,bundleURL ?: @"路径不可用"],NO)];
-                }
-            }
-            [rows addObject:Finding(@"ls:apps",@"visibility",@"应用注册查询",@"clear",0,[NSString stringWithFormat:@"返回 %lu 个注册应用；相关工具 %lu 个。",(unsigned long)apps.count,(unsigned long)relevant],NO)];
-        } @catch (NSException *ex) {
-            [rows addObject:Finding(@"ls:apps",@"visibility",@"应用注册查询",@"unknown",0,ex.reason,NO)];
-        }
-    } else [rows addObject:Finding(@"ls:apps",@"visibility",@"应用注册查询",@"unknown",0,@"未取得有效应用列表；不能据此判定无巨魔或无越狱。",NO)];
-
-    NSString *ownContainer = NSBundle.mainBundle.bundlePath.stringByDeletingLastPathComponent;
-    for (NSString *marker in @[@"_TrollStore", @"_TrollStoreLite"]) {
-        NSString *path = [ownContainer stringByAppendingPathComponent:marker];
-        NSDictionary *p = Probe(path);
-        [rows addObject:Finding([@"selfmarker:" stringByAppendingString:marker],@"trollstore",@"本 App 巨魔安装来源",p[@"status"],12,p[@"detail"],NO)];
+    [rows addObject:Finding(@"observer:entitlements",@"observer",IGT(@"Detector entitlements"),task ? @"info" : @"unknown",0,[[ents componentsJoinedByString:@"\n"] stringByAppendingFormat:@"\n%@",IGT(@"The switch grants no privileges. Runtime access depends on installer configuration.")],NO,@"")];
+    [operations addObject:@"sandbox_check"];
+    typedef int (*SandboxCheck)(pid_t,const char *,int,...); SandboxCheck check = (SandboxCheck)dlsym(RTLD_DEFAULT,"sandbox_check");
+    if (check) { int rc = check(getpid(),"file-read-data",1,"/var/containers/Bundle/Application"); [rows addObject:Finding(@"observer:sandbox",@"observer",IGT(@"Sandbox read policy"),rc<0 ? @"unknown" : @"info",0,IGF(@"sandbox_check result: %d. Permission does not imply that a jailbreak artifact exists.",rc),NO,@"")]; }
+    else [rows addObject:Finding(@"observer:sandbox",@"observer",IGT(@"Sandbox read policy"),@"unknown",0,IGT(@"Unavailable"),NO,@"")];
+    [operations addObject:@"KERN_PROC_ALL"];
+    int mib[] = {CTL_KERN,KERN_PROC,KERN_PROC_ALL,0}; size_t size = 0;
+    BOOL procOK = sysctl(mib,4,NULL,&size,NULL,0)==0 && size>0 && size <= 8*1024*1024;
+    struct kinfo_proc *procs = procOK ? calloc(1,size) : NULL;
+    procOK = procs && sysctl(mib,4,procs,&size,NULL,0)==0;
+    typedef int (*ProcPath)(int,void *,uint32_t); ProcPath procPath = (ProcPath)dlsym(RTLD_DEFAULT,"proc_pidpath");
+    if (procOK) for (NSUInteger i=0;i<MIN(size/sizeof(*procs),4096);i++) {
+        NSString *name = [NSString stringWithUTF8String:procs[i].kp_proc.p_comm];
+        if (![@[@"jailbreakd",@"substrated",@"substituted",@"amfidebilitate",@"tweakloader"] containsObject:name]) continue;
+        char path[4096] = {0}; if (procPath) procPath(procs[i].kp_proc.p_pid,path,sizeof(path)); NSString *p = [NSString stringWithUTF8String:path];
+        NSString *hint = [p hasPrefix:@"/taurine/"] ? @"rootful" : IGFamilyForPath(p);
+        [rows addObject:Finding([NSString stringWithFormat:@"process:%d",procs[i].kp_proc.p_pid],@"injection",IGT(@"Jailbreak daemon"),@"hit",35,[NSString stringWithFormat:@"%@ (%d)\n%@",name,procs[i].kp_proc.p_pid,p],YES,hint)];
     }
-
-    uid_t uid = getuid(), euid = geteuid();
-    gid_t gid = getgid(), egid = getegid();
-    NSString *identity = [NSString stringWithFormat:@"UID %u (%@) / EUID %u (%@)\nGID %u (%@) / EGID %u (%@)\n普通 App 基线为 mobile (501)；系统账户本身存在是正常的。",uid,UserName(uid),euid,UserName(euid),gid,GroupName(gid),egid,GroupName(egid)];
-    [rows addObject:Finding(@"identity:credentials",@"identity",@"当前进程用户与主组",(uid != 501 || euid != 501 || gid != 501 || egid != 501) ? @"hit" : @"clear",
-                           (uid == 0 || euid == 0 || gid == 0 || egid == 0) ? 40 : 20,identity,NO)];
-    [rows addObject:Finding(@"identity:effective",@"identity",@"真实身份与有效身份差异",(uid != euid || gid != egid) ? @"hit" : @"clear",20,
-                           @"身份不一致可能表示 setuid/setgid 或宿主启动配置；此检测不会尝试提权。",NO)];
-    int count = getgroups(0,NULL);
-    NSMutableArray *groupData = [NSMutableArray new];
-    if (count >= 0 && count <= 1024) {
-        gid_t *groups = calloc(MAX(1,count),sizeof(gid_t));
-        int actual = groups ? getgroups(count,groups) : -1;
-        if (actual < 0) [rows addObject:Finding(@"identity:groups",@"identity",@"附加用户组",@"unknown",0,@"getgroups 读取失败。",NO)];
-        else {
-            for (int i=0;i<actual;i++) {
-                gid_t value = groups[i];
-                BOOL privilege = value == 0 || value == 1 || value == 80;
-                NSString *name = GroupName(value);
-                [groupData addObject:@{@"gid":@(value),@"name":name,@"privileged":@(privilege)}];
-                [rows addObject:Finding([NSString stringWithFormat:@"identity:group:%u",value],@"identity",[NSString stringWithFormat:@"附加组 %@ (%u)",name,value],
-                                       privilege ? @"hit" : @"clear",value == 80 ? 20 : 40,
-                                       privilege ? @"当前 App 加入 wheel/root、daemon 或 admin 权限组，偏离 mobile App 基线。" : @"记录当前进程组成员关系；不以未知组名直接判定越狱。",NO)];
-            }
-            if (!actual) [rows addObject:Finding(@"identity:groups",@"identity",@"附加用户组",@"clear",0,@"当前进程没有附加组。",NO)];
-        }
-        free(groups);
-    } else [rows addObject:Finding(@"identity:groups",@"identity",@"附加用户组",@"unknown",0,@"组数量读取失败或超出合理范围。",NO)];
-
-    // Entitlements are observation context; the unsigned IPA carries none of its own.
-    typedef CFTypeRef (*TaskCreate)(CFAllocatorRef);
-    typedef CFTypeRef (*TaskValue)(CFTypeRef,CFStringRef,CFErrorRef *);
-    TaskCreate create = (TaskCreate)dlsym(RTLD_DEFAULT,"SecTaskCreateFromSelf");
-    TaskValue value = (TaskValue)dlsym(RTLD_DEFAULT,"SecTaskCopyValueForEntitlement");
-    if (create && value) {
-        CFTypeRef task = create(kCFAllocatorDefault);
-        NSMutableDictionary *ents = [NSMutableDictionary new];
-        if (task) {
-            for (NSString *key in @[@"platform-application", @"com.apple.private.security.no-sandbox", @"com.apple.private.security.no-container", @"com.apple.private.security.container-required", @"get-task-allow"]) {
-                CFErrorRef error = NULL;
-                CFTypeRef v = value(task,(__bridge CFStringRef)key,&error);
-                if (v) ents[key] = CFBridgingRelease(v);
-                else if (error) ents[key] = @"读取失败";
-                else ents[key] = @"未声明";
-                if (error) CFRelease(error);
-            }
-            CFRelease(task);
-        }
-        NSData *data = [NSJSONSerialization dataWithJSONObject:ents options:NSJSONWritingPrettyPrinted error:NULL];
-        [rows addObject:Finding(@"observer:entitlements",@"observer",@"检测器自身权限",task ? @"info" : @"unknown",0,
-                               [NSString stringWithFormat:@"%@\n本 IPA 未签名，最终运行权限取决于安装器配置；自身权限仅作说明，不扣分。读取受限的项目标记不可判定。",data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"不可用"],NO)];
-    } else [rows addObject:Finding(@"observer:entitlements",@"observer",@"检测器自身权限",@"unknown",0,@"SecTask 私有函数不可用。",NO)];
-
-    NSMutableArray *loaded = [NSMutableArray new];
-    uint32_t imageCount = _dyld_image_count();
-    for (uint32_t i=0;i<imageCount;i++) {
-        const char *c = _dyld_get_image_name(i);
-        if (!c) continue;
-        NSString *path = [NSString stringWithUTF8String:c];
-        if (InjectedPath(path)) {
-            [loaded addObject:path];
-            [rows addObject:Finding([@"image:" stringByAppendingString:path],@"injection",@"加载的注入库",@"hit",35,path,YES)];
-        }
+    free(procs);
+    [rows addObject:Finding(@"process:visibility",@"visibility",IGT(@"Process enumeration"),procOK ? @"info" : @"unknown",0,IGT(@"Only known jailbreak daemon matches are retained. Process lists may be filtered."),NO,@"")];
+    [operations addObject:@"bootstrap_look_up"];
+    for (NSString *service in @[@"org.coolstar.jailbreakd",@"com.opa334.jailbreakd"]) {
+        mach_port_t port = MACH_PORT_NULL; kern_return_t rc = bootstrap_look_up(bootstrap_port,service.UTF8String,&port);
+        if (port != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(),port);
+        [rows addObject:Finding([@"service:" stringByAppendingString:service],@"injection",IGT(@"Jailbreak service lookup"),rc==KERN_SUCCESS ? @"hit" : @"unknown",35,[NSString stringWithFormat:@"%@ (Mach=%d)",service,rc],YES,[service hasPrefix:@"org.coolstar"] ? @"rootful" : @"")];
     }
-    if (!loaded.count) [rows addObject:Finding(@"images:summary",@"injection",@"动态库注入",@"clear",0,[NSString stringWithFormat:@"检查 %u 个已加载镜像；未见已知注入路径。",imageCount],NO)];
-    for (NSString *symbol in @[@"lstat",@"stat",@"getuid",@"objc_msgSend"]) {
-        void *address = dlsym(RTLD_DEFAULT,symbol.UTF8String);
+    [operations addObject:@"Bounded bootstrap enumeration"]; Enumerate(rows);
+#if defined(__arm64__) && !TARGET_OS_SIMULATOR
+    [operations addObject:@"Read-only ARM64 kernel probes"];
+#endif
+}
+
+@implementation IGDetector
++ (NSDictionary *)scanWithPublicURLs:(NSDictionary<NSString *,NSNumber *> *)publicURLs privateAPI:(BOOL)enabled device:(NSDictionary *)device {
+    NSDate *start = NSDate.date; NSMutableArray *rows = [NSMutableArray new], *operations = [NSMutableArray new];
+    NSDictionary *paths = @{
+        @"rootful":@[@"/Applications/Cydia.app",@"/Applications/Sileo.app",@"/Applications/Taurine.app",@"/Applications/unc0ver.app",@"/Library/MobileSubstrate/MobileSubstrate.dylib",@"/Library/MobileSubstrate/DynamicLibraries",@"/usr/lib/libhooker.dylib",@"/usr/lib/TweakInject",@"/usr/lib/libsubstitute.dylib",@"/usr/lib/substitute-loader.dylib",@"/usr/lib/substitute-inserter.dylib",@"/usr/libexec/substrated",@"/usr/libexec/substituted",@"/taurine",@"/taurine/jailbreakd",@"/taurine/amfidebilitate",@"/taurine/pspawn_payload.dylib",@"/usr/lib/pspawn_payload-stg2.dylib",@"/var/run/jailbreakd.pid",@"/usr/bin/apt",@"/usr/bin/dpkg",@"/bin/bash",@"/etc/apt",@"/var/lib/dpkg/status",@"/var/lib/cydia",@"/var/mobile/Library/Cydia",@"/var/mobile/Library/Preferences/com.saurik.Cydia.plist",@"/.installed_unc0ver",@"/.bootstrapped_electra",@"/.procursus_strapped",@"/.cydia_no_stash"],
+        @"rootless":@[@"/var/jb",@"/private/var/jb/usr/bin/dpkg",@"/var/jb/usr/bin/dpkg",@"/var/jb/usr/lib/libellekit.dylib",@"/var/jb/usr/lib/ellekit",@"/var/jb/Applications/Sileo.app",@"/var/jb/basebin",@"/var/jb/basebin/jailbreakd",@"/var/jb/basebin/libjailbreak.dylib"],
+        @"roothide":@[[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@".jbroot"],@"/usr/lib/.jbroot",@"/usr/lib/libroothide.dylib"],
+        @"trollstore":@[@"/Applications/TrollStore.app",@"/Applications/TrollStoreLite.app"]};
+    for (NSString *g in @[@"rootful",@"rootless",@"roothide",@"trollstore"]) for (NSString *p in paths[g]) AddPath(rows,p,g,[g isEqual:@"trollstore"] ? 12 : (([p isEqual:@"/var/jb"] || [p isEqual:@"/bin/bash"] || [p isEqual:@"/taurine"]) ? 20 : 35),enabled);
+    // ElleKit ships both rootful/rootless packages and compatibility symlinks.
+    for (NSString *prefix in @[@"",@"/var/jb"]) for (NSString *artifact in @[@"/usr/lib/libellekit.dylib",@"/usr/lib/ellekit/libinjector.dylib",@"/usr/lib/ellekit/pspawn.dylib",@"/usr/libexec/ellekit/loader",@"/usr/lib/TweakInject.dylib",@"/usr/lib/TweakLoader.dylib",@"/usr/lib/libblackjack.dylib",@"/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate"]) {
+        NSString *p=[prefix stringByAppendingString:artifact];
+        if (![paths[prefix.length ? @"rootless" : @"rootful"] containsObject:p]) AddPath(rows,p,prefix.length ? @"rootless" : @"rootful",35,enabled);
+    }
+    NSString *container = NSBundle.mainBundle.bundlePath.stringByDeletingLastPathComponent;
+    for (NSString *m in @[@"_TrollStore",@"_TrollStoreLite"]) AddPath(rows,[container stringByAppendingPathComponent:m],@"trollstore",12,enabled);
+    for (NSString *s in @[@"cydia",@"sileo",@"zbra",@"undecimus",@"taurine",@"filza",@"trollstore",@"apple-magnifier"]) {
+        BOOL ts = [s isEqual:@"trollstore"], magnifier = [s isEqual:@"apple-magnifier"];
+        NSString *hint = [@[@"cydia",@"undecimus",@"taurine"] containsObject:s] ? @"rootful" : @"";
+        [rows addObject:Finding([@"publicurl:" stringByAppendingString:s],ts ? @"trollstore" : @"runtime",IGT(@"Public URL availability"),[publicURLs[s] boolValue] ? (magnifier ? @"info" : @"hit") : @"clear",magnifier ? 0 : (ts ? 12 : 10),IGF(@"%@://; availability alone cannot verify the handler or active jailbreak.",s),NO,hint)];
+    }
+    uid_t uid = getuid(), euid = geteuid(); gid_t gid = getgid(), egid = getegid();
+    NSString *identity = IGF(@"UID %u (%@) / EUID %u (%@)\nGID %u (%@) / EGID %u (%@)\nOrdinary apps use mobile (501). Existing system accounts alone are normal.",uid,UserName(uid),euid,UserName(euid),gid,GroupName(gid),egid,GroupName(egid));
+    [rows addObject:Finding(@"identity:credentials",@"identity",IGT(@"Process user and primary group"),uid!=501 || euid!=501 || gid!=501 || egid!=501 ? @"hit" : @"clear",uid==0 || euid==0 || gid==0 || egid==0 ? 40 : 20,identity,NO,@"")];
+    [rows addObject:Finding(@"identity:effective",@"identity",IGT(@"Real and effective identity mismatch"),uid!=euid || gid!=egid ? @"hit" : @"clear",20,IGT(@"A mismatch may indicate setuid/setgid or a launcher configuration. No privilege escalation is attempted."),NO,@"")];
+    NSMutableArray *groupData = [NSMutableArray new]; int count = getgroups(0,NULL);
+    gid_t *groups = count>=0 && count<=1024 ? calloc(MAX(1,count),sizeof(gid_t)) : NULL;
+    int actual = groups ? getgroups(count,groups) : -1;
+    if (actual<0) [rows addObject:Finding(@"identity:groups",@"identity",IGT(@"Supplementary groups"),@"unknown",0,IGT(@"Unable to read group membership."),NO,@"")];
+    else {
+        for (int i=0;i<actual;i++) {
+            gid_t v = groups[i]; BOOL privileged = v==0 || v==1 || v==80; NSString *name = GroupName(v);
+            [groupData addObject:@{@"gid":@(v),@"name":name,@"privileged":@(privileged)}];
+            [rows addObject:Finding([NSString stringWithFormat:@"identity:group:%u",v],@"identity",IGF(@"Supplementary group %@ (%u)",name,v),privileged ? @"hit" : @"clear",v==80 ? 20 : 40,privileged ? IGT(@"Membership in wheel/root, daemon or admin deviates from the ordinary app baseline.") : IGT(@"Unknown group names alone are not jailbreak evidence."),NO,@"")];
+        }
+        if (!actual) [rows addObject:Finding(@"identity:groups",@"identity",IGT(@"Supplementary groups"),@"clear",0,IGT(@"No supplementary groups."),NO,@"")];
+    } free(groups);
+    uint32_t images = _dyld_image_count(); NSUInteger matches = 0;
+    for (uint32_t i=0;i<images;i++) {
+        const char *c = _dyld_get_image_name(i); if (!c) continue; NSString *p = @(c);
+        if (InjectedPath(p)) { matches++; [rows addObject:Finding([@"image:" stringByAppendingString:p],@"injection",IGT(@"Loaded injection library"),@"hit",35,p,YES,IGFamilyForPath(p))]; }
+    }
+    if (!matches) [rows addObject:Finding(@"images:summary",@"injection",IGT(@"Dynamic library injection"),@"clear",0,IGF(@"Inspected %u loaded images. No known injected path was visible.",images),NO,@"")];
+    for (NSString *s in @[@"lstat",@"stat",@"open",@"access",@"getuid",@"objc_msgSend",@"_dyld_get_image_name"]) {
+        void *address = dlsym(RTLD_DEFAULT,s.UTF8String);
 #if __has_feature(ptrauth_calls)
         address = ptrauth_strip(address,ptrauth_key_function_pointer);
 #endif
-        Dl_info info = {0};
-        BOOL ok = address && dladdr(address,&info) && info.dli_fname;
-        NSString *path = ok ? [NSString stringWithUTF8String:info.dli_fname] : @"无法解析";
-        [rows addObject:Finding([@"symbol:" stringByAppendingString:symbol],@"injection",[NSString stringWithFormat:@"函数来源 %@",symbol],
-                               !ok ? @"unknown" : (InjectedPath(path) ? @"hit" : @"clear"),35,path,ok && InjectedPath(path))];
+        Dl_info info = {0}; BOOL ok = address && dladdr(address,&info) && info.dli_fname;
+        NSString *p = ok ? @(info.dli_fname) : IGT(@"Unavailable"); BOOL injected = ok && InjectedPath(p);
+        [rows addObject:Finding([@"symbol:" stringByAppendingString:s],@"injection",IGF(@"Function origin %@",s),!ok ? @"unknown" : (injected ? @"hit" : @"clear"),35,p,injected,IGFamilyForPath(p))];
     }
-    const char *dyld = getenv("DYLD_INSERT_LIBRARIES");
-    [rows addObject:Finding(@"runtime:dyldenv",@"runtime",@"DYLD 注入环境变量",dyld && strlen(dyld) ? @"hit" : @"clear",20,dyld ? [NSString stringWithUTF8String:dyld] : @"未设置",NO)];
-    int mib[4] = {CTL_KERN,KERN_PROC,KERN_PROC_PID,getpid()};
-    struct kinfo_proc process = {0}; size_t size = sizeof(process);
-    BOOL ok = sysctl(mib,4,&process,&size,NULL,0) == 0 && size == sizeof(process);
-    [rows addObject:Finding(@"runtime:debugger",@"runtime",@"调试器附加",!ok ? @"unknown" : ((process.kp_proc.p_flag & P_TRACED) ? @"hit" : @"clear"),15,
-                           !ok ? @"无法读取本进程状态。" : @"P_TRACED 为调试上下文证据，不能单独证明越狱。",NO)];
-    struct statfs mount;
-    BOOL mounted = statfs("/",&mount)==0;
-    [rows addObject:Finding(@"runtime:rootfs",@"runtime",@"根文件系统挂载",!mounted ? @"unknown" : ((mount.f_flags & MNT_RDONLY) ? @"clear" : @"hit"),20,
-                           !mounted ? @"statfs 读取失败。" : [NSString stringWithFormat:@"文件系统 %s；根挂载%@。只读根不能排除 rootless/roothide。",mount.f_fstypename,(mount.f_flags & MNT_RDONLY) ? @"只读" : @"可写"],NO)];
-    // Historical behaviour cannot be inferred from credential snapshots.
-    [rows addObject:Finding(@"identity:scope",@"observer",@"用户组异常行为范围",@"info",0,@"显示本进程的 root 身份、有效身份差异和特权附加组，以及路径拥有者。不是系统历史审计，不把 root/mobile 系统账户的正常存在当异常。",NO)];
-    // Architecture is reported from our Mach-O slice, not device marketing names.
-    const struct mach_header *header = _dyld_get_image_header(0);
-    NSString *arch = @"unknown";
-    if (header && header->cputype == CPU_TYPE_ARM64) arch = (header->cpusubtype & ~CPU_SUBTYPE_MASK) == CPU_SUBTYPE_ARM64E ? @"arm64e" : @"arm64";
-    else if (header && header->cputype == CPU_TYPE_X86_64) arch = @"x86_64";
+    const char *env = getenv("DYLD_INSERT_LIBRARIES");
+    [rows addObject:Finding(@"runtime:dyldenv",@"runtime",IGT(@"DYLD injection variable"),env && strlen(env) ? @"hit" : @"clear",20,env ? @(env) : IGT(@"Not set"),NO,@"")];
+    struct statfs fs = {0}; BOOL fsOK = statfs("/",&fs)==0;
+    [rows addObject:Finding(@"runtime:rootfs",@"runtime",IGT(@"Root filesystem mount"),!fsOK ? @"unknown" : (!(fs.f_flags&MNT_RDONLY) ? @"hit" : @"clear"),20,fsOK ? [NSString stringWithFormat:@"%s; flags=0x%x",fs.f_fstypename,fs.f_flags] : IGT(@"Unavailable"),NO,@"")];
+    if (enabled) PrivateChecks(rows,publicURLs,operations);
+    else [rows addObject:Finding(@"private:disabled",@"observer",IGT(@"Private API checks"),@"skipped",0,IGT(@"Disabled by default. Enable in Settings for extended checks. Skipped checks are not recorded as clean."),NO,@"")];
+    [rows addObject:Finding(@"observer:scope",@"observer",IGT(@"Visibility limits"),@"info",0,IGT(@"Shadow and Choicy can filter paths, URLs, processes and injection. Kernel probes can also be intercepted. Missing traces do not prove a stock system."),NO,@"")];
 #if TARGET_OS_SIMULATOR
-    // Simulator credentials, paths and libraries belong to macOS, not a physical iOS device.
-    NSMutableArray *simulatorRows = [NSMutableArray new];
-    for (NSDictionary *row in rows) {
-        NSMutableDictionary *entry = row.mutableCopy;
-        if (![row[@"group"] isEqual:@"observer"]) {
-            entry[@"status"] = @"unknown";
-            entry[@"weight"] = @0;
-            entry[@"jailbreakEvidence"] = @NO;
-            entry[@"detail"] = [@"模拟器观测值，不用于真机评分。\n" stringByAppendingString:row[@"detail"]];
-        }
-        [simulatorRows addObject:entry];
-    }
-    rows = simulatorRows;
-    [rows addObject:Finding(@"observer:simulator",@"observer",@"模拟器检测限制",@"unknown",0,@"当前为 iOS 模拟器。macOS 的 shell、用户组和挂载状态不能用作真机越狱证据；全部设备检测项标记不可判定。",NO)];
+    for (NSUInteger i=0;i<rows.count;i++) { NSMutableDictionary *f = [rows[i] mutableCopy]; if (![f[@"group"] isEqual:@"observer"]) { f[@"status"]=@"unknown"; f[@"weight"]=@0; f[@"jailbreakEvidence"]=@NO; f[@"detail"]=IGT(@"Simulator observations cannot determine a physical device environment."); } rows[i]=f; }
 #endif
-    NSDictionary *score = IGScore(rows);
-    return @{@"schemaVersion":@1,@"appVersion":@"1.0.0",@"timestamp":@([[NSDate date] timeIntervalSince1970]),
-             @"device":@{@"model":UIDevice.currentDevice.model,@"system":UIDevice.currentDevice.systemVersion,@"binaryArchitecture":arch,@"simulator":@((BOOL)TARGET_OS_SIMULATOR)},
-             @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"supplementaryGroups":groupData},
-             @"score":score,@"findings":rows,
-             @"limitations":@[@"隐藏层可拦截文件/注册/动态库查询；未命中不保证未越狱。",@"私有 API 在未来系统可能不可用；不可判定项阻止完美评级。",@"巨魔检测不等同越狱；本 App 主动声明的权限不扣分。",@"证据可表示残留，不能仅凭工具安装状态判断当前越狱运行状态。"]};
+    NSDate *finish = NSDate.date; NSDateFormatter *format = [NSDateFormatter new]; format.locale = [NSLocale localeWithLocaleIdentifier:IGCurrentLanguage()]; format.dateFormat=@"yyyy-MM-dd HH:mm:ss ZZZZZ";
+    NSMutableDictionary *d = [device mutableCopy];
+#if defined(__arm64e__)
+    d[@"binaryArchitecture"]=@"arm64e";
+#elif defined(__arm64__)
+    d[@"binaryArchitecture"]=@"arm64";
+#else
+    d[@"binaryArchitecture"]=@"x86_64";
+#endif
+    return @{@"schema":@2,@"appVersion":@"1.1.0",@"language":IGCurrentLanguage(),@"timestamp":@([finish timeIntervalSince1970]),@"scanTime":[format stringFromDate:finish],@"scanDuration":@([finish timeIntervalSinceDate:start]),@"device":d,
+             @"scanConfiguration":@{@"privateAPIEnabled":@(enabled),@"mode":enabled ? @"extended" : @"standard",@"privateOperationsAttempted":operations},
+             @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"groups":groupData},@"score":IGScore(rows),@"classification":IGClassification(rows),@"findings":rows};
 }
 @end

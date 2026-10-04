@@ -1,49 +1,58 @@
-# 环境哨兵 / IOSGuard
+# 环境哨兵 / IOSGuard 1.1.0
 
-中文、本地运行的 iOS 环境检测器。最低 iOS 14.0，设备 IPA 包含 arm64 和 arm64e 两个 Mach-O 切片；iPhone XR 等 arm64e 设备亦可运行 arm64 切片。使用 GitHub Actions 的 macOS runner 编译，Windows 不需要 Xcode。通过 TrollStore 安装 IPA；该分发方式的系统版本支持范围由 TrollStore 决定，并非所有 iOS 14+ 都能通过 TrollStore 安装。
+原生 UIKit 本地环境检测器，最低 iOS 14.0，IPA 包含 arm64 与 arm64e。Windows 生成工程，GitHub Actions macOS runner 编译。交付完全未签名 IPA：不含 ad-hoc 签名、签名资源、描述文件或内嵌 entitlement。TrollStore 安装后的权限和可安装系统范围由安装器决定。
 
-## 使用
+## 使用与设置
 
-下载 Actions 的 `IOSGuard-unsigned-iOS14-arm64-arm64e` 构建产物，解压后将 `IOSGuard-unsigned.ipa` 分享给 TrollStore 安装。交付 IPA 完全未签名，无签名资源、描述文件和内嵌 entitlement。启动自动检测，点击「重新检测」刷新；筛选全部、命中、不可判定、用户组。右上角分享按钮导出 JSON 报告，包含原始证据、权重、分组扣分、关联抵扣、当前身份与检测限制。App 没有网络请求；报告只在主动分享时离开设备。
+下载 Actions 构建产物中的 `IOSGuard-unsigned.ipa`，通过 TrollStore 安装。主页顶部显示具体 iPhone 型号、硬件标识、iOS 版本及构建号、检测完成时间（含时区）、耗时、环境评分和疑似越狱类型。右上角分享按钮导出 JSON 原始证据；齿轮进入二级设置页。
 
-「用户组异常行为」在本版本指当前检测器进程的 root/非 mobile 身份、真实与有效 UID/GID 差异、wheel/root、daemon、admin 附加组，以及命中文件的拥有者；不是系统行为历史或其他应用的身份审计。正常的 root/mobile 账户存在不算异常。不执行提权、安装、删除、写入系统目录、打开巨魔安装 URL 或修改系统配置。
+- 语言：跟随系统（默认）、English `en_US`、简体中文 `zh_Hans_CN`。系统简体与繁体中文（含中国大陆、台湾、香港地区）统一使用简体资源；其他语言回退英语。返回主页自动按设置重新检测。
+- 使用私有 API：默认关闭，持久保存选择。开启后尝试全面只读检测，包括巨魔 URL 实际处理者、工具注册、随机引导目录、检测器权限、沙盒策略、越狱守护进程、Mach 服务和 ARM64 内核读取。供证书或巨魔安装用户选择；开关不授予权限，也不能保证绕过隐藏插件。
+- 私有模式关闭时上述扩展检测和原始 SVC 均不调用。跳过项标记 `skipped`，不冒充「未命中」。公开 URL 查询只调用 canOpenURL，从不打开或触发安装。
 
-## 评分 v1
+应用不联网；报告仅在用户主动分享时导出。不执行提权、越狱、其他进程注入、安装、删除、系统写入或 Mach 服务消息发送。
 
-基础 100 分，风险 = 命中证据的加权扣分。按唯一检测 ID 去重，再施加分组上限：rootful/rootless/roothide 每组 45，三组共同不超过 45；注入 35，用户组 40，运行环境 25，巨魔 15；检测可见性与检测器自身权限 0。总扣分最高 100。报告记录三组共同上限带来的 `correlationDiscount`，因此各组展示值相加可能高于最终扣分。
+## 分类与评分
+
+分类与评分分别计算。命中有根、无根、隐根证据显示「疑似有根越狱（rootful）」「疑似无根越狱（rootless）」「疑似隐根越狱（roothide）」。多种证据并存时保留多个疑似类型，并导出对应检测 ID。只发现工具或通用注入时不强行推断类型；只有巨魔不会判定越狱。Dopamine 普通版与 RootHide 版可能共享 bundle ID，需结合真实路径、`.jbroot` 或服务等证据区分。工具安装和历史残留不能证明当前已激活越狱。
+
+基础 100 分，唯一检测 ID 去重；风险为命中证据的加权扣分。rootful/rootless/roothide 每组上限 45，三组合计仍最多 45；注入 35、用户组 40、运行环境 25、巨魔 15；可见性与检测器自身权限 0。总扣分最高 100。`correlationDiscount` 记录文件系统组的关联抵扣。
 
 | 评级 | 规则 |
 |---|---|
-| 完美 | 100 分，且没有不可判定项；表示当前检测范围通过 |
-| 疑似 | 风险 1–29（71–99 分），或任意不可判定项；可为 100 分 |
+| 完美 | 100 分且启用检测没有不可判定项 |
+| 疑似 | 风险 1–29（71–99 分），或存在不可判定项，可为 100 分 |
 | 异常环境 | 风险至少 30（0–70 分） |
 
-独立显示越狱痕迹结论。TrollStore-only 最多扣 15 分，评级为疑似，不声明已越狱。工具 App 注册证据通常 15 分，不能说明当前已激活越狱；越狱专用路径通常 35 分；单独 `/var/jb` 链接或 `/bin/bash` 为 20 分，因为可能残留；随机 jbroot 名称为 15 分，有 dpkg/basebin 佐证才 40 分；注入库和函数来源为 35 分；root UID/GID 或 wheel/daemon 附加组 40 分，其他非 mobile 身份、身份差异或 admin 附加组 20 分；DYLD 环境变量/可写根 20 分，调试器 15 分。检测器自身的无沙盒/平台权限为预期观测配置，不计分；这些权限不会自动让 UID 变为 root。
-
-文件不存在为「未命中」；权限不足、私有 API 缺失、无有效注册列表或查询错误为「不可判定」，不伪装成通过。评分是透明的启发式规则，不是统计概率，也没有声称能绕过所有隐藏插件。未签名包无法携带生效的 entitlement，安装后的最终权限由安装器决定；若没有无沙盒读取权限，部分文件和私有 API 检测可能不可判定。`Sources/Entitlements.plist` 仅保留为权限配置参考，不用于编译或打包签名。
+越狱专用路径通常 35 分；单独 `/var/jb`、`/bin/bash`、`/taurine` 为 20；随机 `.jbroot-*` 名称 15，有 dpkg/basebin 佐证 40；工具注册 15，公开工具 URL 10；注入与越狱服务 35，内核/用户态可见性矛盾 10；root 身份或 wheel/daemon 附加组 40，其他非 mobile 身份、身份差异、admin 组 20；DYLD 变量和可写根挂载 20；巨魔路径/处理者 12，合计上限 15。权限不足和接口错误标记不可判定，不虚构风险或通过。评分是启发式规则，不是统计概率。
 
 ## 检测范围
 
-- Rootful：Cydia/Sileo、MobileSubstrate、Substitute、libhooker、apt/dpkg、历史 bootstrap 标记。
-- Rootless：`/var/jb`、basebin、ElleKit、Sileo、可读取的 Preboot bootstrap 目录。
-- RootHide：App Bundle 的 `.jbroot` 链接，Bundle Application/Shared AppGroup 下的随机 `.jbroot-*` 目录，dpkg/basebin 佐证及加载库。
-- TrollStore：自身与其他容器的 `_TrollStore`/`_TrollStoreLite` 标记、巨魔 App 目录、LaunchServices 已注册 App。
-- URL：公开 `canOpenURL` 加私有 `LSApplicationWorkspace applicationsAvailableForHandlingURLScheme:` 查询处理者。严格匹配巨魔 bundle ID；`com.apple.Magnifier` 属于系统放大镜，单独可打开 `apple-magnifier://` 不算巨魔。URL 关闭时仍通过安装标记及注册信息检测。私有 API 不能读取时保持不可判定。
-- UID/EUID/GID/EGID、附加组及名称，dyld 镜像，关键函数 `dladdr` 来源，DYLD 环境变量、P_TRACED、根挂载状态。arm64e 指针用于 `dladdr` 前进行 PAC strip；不手工解引用签名指针。
+- Taurine / rootful：libhooker、libblackjack、TweakInject、`/taurine/jailbreakd`、amfidebilitate、pspawn、`org.coolstar.jailbreakd` 等。Taurine 不依赖 Substitute；保留 Substitute 路径以覆盖 unc0ver，以及 MobileSubstrate、apt/dpkg、历史引导标记。
+- Dopamine / rootless：`/var/jb`、basebin、libjailbreak、ElleKit 和实际 Preboot 的 `dopamine-*` / `jb-*` 下 procursus 路径。
+- ElleKit：rootful/rootless 的 libellekit、libinjector、pspawn、loader、TweakInject/TweakLoader 与兼容符号链接；已加载镜像和函数来源也检查 ElleKit。RootHide 路径中的 ElleKit归入隐根证据。
+- Dopamine RootHide / Relaxin：自身及工具 bundle 的 `.jbroot`，Bundle Application/Shared AppGroup 的 `.jbroot-*`，dpkg/basebin 佐证、libroothide、注入路径；已知 Relaxin/RelaxinLite 注册 ID。改名变体可能无法按 ID 识别。
+- TrollStore：本 App 与可读取容器的 `_TrollStore` / `_TrollStoreLite`、工具目录和注册 ID。私有 URL 处理者严格匹配 `com.opa334.TrollStore` / `TrollStoreLite`；苹果 Magnifier 本身不作为巨魔证据。
+- 每条路径交叉比较 lstat/stat/access/只读 open/FileManager；私有模式真机再比较只读 ARM64 SVC。原始入口只接受路径，固定只读，无创建或写入能力。内核阳性且 libc lstat/open 同时报告不存在时提示过滤或状态变化；不会把该矛盾直接宣称为成功绕过 Shadow。
+- UID/EUID/GID/EGID、组名称和成员关系；dyld 镜像、公有函数 dladdr 来源、DYLD 变量、根挂载。arm64e 函数地址先去除 PAC 再交给 dladdr，不手工解引用代码指针。
 
-## 编译与验证
+「用户组异常行为」指检测器进程相对 mobile（501）基线的身份/权限异常，不是系统历史审计。正常系统账户的存在不算异常，未知组名本身也不算越狱。
 
-`python scripts/generate_project.py` 可在 Windows 生成 Xcode 工程；macOS 上 `bash scripts/build.sh` 构建双架构未签名 IPA。关闭 Xcode 签名并禁止链接器生成 ad-hoc 签名；不会调用签名工具。CI 运行独立 Foundation 评分与 URL 分类回归，验证 Mach-O 架构、最低系统、两个切片均无 `LC_CODE_SIGNATURE`、App 无 `_CodeSignature` 和描述文件，再构建模拟器、确认 App 启动后存活并截图。模拟器只验证启动/UI，真机各类越狱的准确率需安装实测；未进行真机验证时不能声称检测全部环境成功。
+## 构建与验证
 
-原生 UIKit，自适应深浅主题、动态字体、iPhone/iPad 分享面板。无第三方代码依赖。按用户要求交付未签名 IPA，安装器自行完成安装处理。私有 API 始终检测类和 selector 是否存在，并捕获 Objective-C 异常，但不保证未来系统兼容性。
+`python scripts/generate_project.py` 生成无依赖 Xcode 工程；macOS 执行 `bash scripts/build.sh`。CI 校验 100 个双语资源的键与格式占位符，运行评分、URL、类型判定、语言映射和默认私有开关回归。验证设备双架构、最低 iOS、每个 Mach-O 切片无 `LC_CODE_SIGNATURE`、无签名资源和描述文件，再在模拟器检查默认英语、繁体映射简体、手动语言覆盖与开启私有模式的报告及设置页。`scanConfiguration.privateOperationsAttempted` 可审核模式开关是否实际执行扩展项。
 
-模拟器观测的是 macOS 宿主环境，因此设备检测项统一标记不可判定、计 0 分，明确显示模拟器限制。CI 验证导出报告结构及该规则，防止宿主 shell/用户组被误判成真机越狱。应用图标使用用户指定图片经内置 ImageGen 仅将深色背景改为白色后的版本，完整图在 `Artwork/AppIcon-white.png`，打包图标尺寸在 asset catalog。
+模拟器所有真机环境检测项均不可判定、权重 0，不把宿主用户组或 shell 当成 iOS 越狱。模拟器验证启动、设置、翻译、报告和开关；不能验证真机准确率。尚未在用户的 iPhone XR iOS 14.8 / Taurine / Shadow + Choicy 上实测。
+
+图标使用用户图片白底版本 `Artwork/AppIcon-white.png`；全部图标尺寸已打包。`Sources/Entitlements.plist` 仅为参考，不参与签名或打包。
 
 ## 依据与限制
 
-- [TrollStore 源码与支持范围](https://github.com/opa334/TrollStore)：Shared/TSUtil.h 安装标记、Shared/TSUtil.m 容器扫描、TrollStore/Resources/Info.plist 的 URL/bundle ID。
-- [RootHide 开发文档](https://github.com/RootHide/Developer/blob/main/roothide.md)：随机 jbroot、`.jbroot` 链接和加载路径。
-- [Theos LaunchServices 头文件](https://github.com/theos/headers/blob/master/MobileCoreServices/LSApplicationWorkspace.h)：只读 URL 处理者查询。
-- [Apple 指针认证说明](https://developer.apple.com/documentation/security/preparing-your-app-to-work-with-pointer-authentication)：arm64e 支持。
+- [Taurine](https://github.com/Odyssey-Team/Taurine)：libhooker、Taurine 引导路径与服务。
+- [Dopamine](https://github.com/opa334/Dopamine)、[ElleKit 打包源码](https://github.com/tealbathingsuit/ellekit/blob/main/Makefile)：普通无根路径、实际注入组件和兼容链接。
+- [RootHide 文档](https://github.com/RootHide/Developer/blob/main/roothide.md)、[Relaxin 源码快照](https://github.com/xz1c/relaxin)：随机 jbroot 和变体标识。
+- [TrollStore](https://github.com/opa334/TrollStore#unsandboxing)、[LaunchServices 头文件](https://github.com/theos/headers/blob/master/MobileCoreServices/LSApplicationWorkspace.h)：安装标记、实际 URL 处理者及权限限制。
+- [Shadow 源码](https://github.com/jjolano/shadow)：路径、进程、URL 和系统调用过滤；原始 SVC 也可能被处理。
+- [Apple XNU 调用约定](https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/custom/SYS.h)、[设备标识映射](https://github.com/devicekit/DeviceKit/blob/master/Source/Device.generated.swift)。
 
-RootHide 或其他 hook 可伪造所有本地查询；工具/目录可能是历史残留；变体可能更名。未命中不等于不存在。「完美」只是检测范围内没有证据/错误，不能证明设备绝对安全。采用无沙盒观察器通常更容易取得证据，同时与普通沙盒 App 的可见范围不同。
+Shadow 可隐藏查询结果，Choicy 可关闭注入；未见注入不表示未越狱。无签名包无法预置生效权限，读取能力受安装器配置影响。RootHide 或其他 hook 可伪造本地查询，目录可能是残留，变体可改名。未命中不等于不存在，「完美」仅表示已启用的当前可见范围没有证据或错误。

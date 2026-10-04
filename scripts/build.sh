@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build dist
 python3 scripts/generate_project.py
-clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation -I Sources Tests/PolicyTests.m Sources/Policy.m -o build/policy-tests
+python3 scripts/check_localizations.py
+clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation -I Sources Tests/PolicyTests.m Sources/Policy.m Sources/Localization.m -o build/policy-tests
 build/policy-tests
 xcodebuild -project IOSGuard.xcodeproj -scheme IOSGuard -configuration Release -sdk iphoneos \
   -destination 'generic/platform=iOS' -derivedDataPath build/device \
