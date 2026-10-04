@@ -1,5 +1,6 @@
 #import "Policy.h"
 #import "Localization.h"
+#import "Summary.h"
 #include <stdlib.h>
 static void Check(BOOL condition,NSString *message) { if (!condition) { NSLog(@"FAIL: %@",message); exit(1); } }
 static NSDictionary *F(NSString *key,NSString *group,NSString *status,int weight,BOOL jb) {
@@ -54,5 +55,28 @@ int main(void) { @autoreleasepool {
     [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"IGPrivateAPIEnabled"]; IGRegisterSettings();
     Check(IGPrivateAPIEnabled(),@"registration preserves user preference");
     [NSUserDefaults.standardUserDefaults removeObjectForKey:@"IGPrivateAPIEnabled"];
-    NSLog(@"All 35 policy and settings regressions passed.");
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"IGProfessionalMode"]; IGRegisterSettings();
+    Check(!IGProfessionalModeEnabled(),@"normal mode is the default");
+    [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"IGProfessionalMode"]; IGRegisterSettings();
+    Check(IGProfessionalModeEnabled() && !IGPrivateAPIEnabled(),@"professional preference persists and does not enable private APIs");
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"IGProfessionalMode"];
+    Check([IGStoreForIdentifier(@"org.coolstar.SileoStore") isEqual:@"Sileo"],@"store bundle IDs are case insensitive");
+    Check(!IGStoreForIdentifier(@"org.coolstar.SileoStore.fake").length,@"no substring store match");
+    NSArray *storeFindings=@[F(@"publicurl:sileo",@"runtime",@"hit",10,NO),F(@"path:/var/jb/Applications/Cydia.app",@"rootless",@"hit",35,YES),F(@"app:org.coolstar.SileoStore",@"runtime",@"hit",15,NO),F(@"publicurl:zbra",@"runtime",@"unknown",10,NO)];
+    NSArray *summary=IGSummaryRows(storeFindings,IGClassification(storeFindings));
+    NSDictionary *storeRow=nil; for (NSDictionary *row in summary) if ([row[@"kind"] isEqual:@"stores"]) storeRow=row;
+    Check([storeRow[@"values"] isEqual:@[@"Cydia",@"Sileo"]],@"multiple stores deduplicated in stable order; unknown excluded");
+    Check([storeRow[@"evidenceIDs"] count]==3,@"all store evidence retained after name deduplication");
+    Check([summary[0][@"kind"] isEqual:@"jailbreak"] && [summary[0][@"values"] count]==1,@"Rootless conclusion independent from installed store names");
+    Check([IGSummaryRows(@[F(@"path:/Applications/Cydia.app.backup",@"runtime",@"hit",0,NO)],IGClassification(@[])) count]==1,@"backup path is only generic runtime evidence, not Cydia");
+    NSArray *trollSummary=IGSummaryRows(ts,IGClassification(ts));
+    Check(trollSummary.count==1 && [trollSummary[0][@"kind"] isEqual:@"trollstore"],@"TrollStore-only summary does not claim jailbreak");
+    NSMutableDictionary *image=[F(@"image:/var/jb/usr/lib/ellekit/libinjector.dylib",@"injection",@"hit",35,YES) mutableCopy]; image[@"detail"]=@"/var/jb/usr/lib/ellekit/libinjector.dylib";
+    NSMutableDictionary *symbol=[F(@"symbol:open",@"injection",@"hit",35,YES) mutableCopy]; symbol[@"detail"]=@"/var/jb/usr/lib/ellekit/libinjector.dylib";
+    NSArray *libFindings=@[image,symbol,F(@"path:/var/jb/usr/lib/libellekit.dylib",@"rootless",@"hit",35,YES)];
+    NSDictionary *libRow=nil; for (NSDictionary *row in IGSummaryRows(libFindings,IGClassification(libFindings))) if ([row[@"kind"] isEqual:@"libraries"]) libRow=row;
+    Check([libRow[@"values"] isEqual:@[@"libinjector.dylib"]],@"library basenames deduplicated; files merely present excluded");
+    Check([libRow[@"evidenceIDs"] count]==2,@"loaded image and symbol evidence retained");
+    Check(!IGSummaryRows(@[F(@"image:/var/jb/lib.dylib",@"injection",@"unknown",35,YES)],IGClassification(@[])).count,@"unknown library is not declared detected");
+    NSLog(@"All policy, settings and normal-summary regressions passed.");
 } return 0; }

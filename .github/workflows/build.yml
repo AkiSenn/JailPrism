@@ -1,7 +1,10 @@
-name: Build unsigned IOSGuard IPA
+name: Build unsigned JailPrism IPA
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -16,7 +19,7 @@ jobs:
       - name: Build simulator for smoke test
         run: |
           SIM_ARCH=$(uname -m)
-          xcodebuild -project IOSGuard.xcodeproj -scheme IOSGuard -configuration Release \
+          xcodebuild -project JailPrism.xcodeproj -scheme JailPrism -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/simulator ARCHS="$SIM_ARCH" ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_ENTITLEMENTS= build > build/simulator-build.log 2>&1 \
@@ -24,13 +27,13 @@ jobs:
       - name: Launch and capture simulator UI
         run: python3 scripts/simulator_smoke.py
       - name: SHA256
-        run: shasum -a 256 dist/IOSGuard-unsigned.ipa > dist/SHA256SUMS.txt
+        run: shasum -a 256 dist/JailPrism-unsigned.ipa > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: IOSGuard-unsigned-iOS14-arm64-arm64e
+          name: JailPrism-unsigned-iOS14-arm64-arm64e
           path: |
-            dist/IOSGuard-unsigned.ipa
+            dist/JailPrism-unsigned.ipa
             dist/build-metadata.json
             dist/SHA256SUMS.txt
             dist/simulator-*.png

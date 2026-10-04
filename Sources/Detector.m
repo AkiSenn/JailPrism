@@ -1,6 +1,7 @@
 #import "Detector.h"
 #import "Policy.h"
 #import "Localization.h"
+#import "Summary.h"
 #import <UIKit/UIKit.h>
 #import <objc/message.h>
 #import <dlfcn.h>
@@ -136,7 +137,8 @@ static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray
         if ([apps isKindOfClass:NSArray.class]) for (id proxy in apps) {
             if (++n > 2048) break; id identifier = Call0(proxy,@"applicationIdentifier"); if (![identifier isKindOfClass:NSString.class]) continue;
             BOOL ts = IGIsTrollStoreIdentifier(identifier); NSString *hint = tools[[identifier lowercaseString]];
-            if (!ts && hint == nil) continue; relevant++;
+            NSString *store = IGStoreForIdentifier(identifier);
+            if (!ts && hint == nil && !store.length) continue; relevant++;
             id url = Call0(proxy,@"bundleURL"); NSString *path = [url isKindOfClass:NSURL.class] ? [url path] : @"";
             NSString *pathHint = IGFamilyForPath(path); if (pathHint.length) hint = pathHint;
             [rows addObject:Finding([@"app:" stringByAppendingString:identifier],ts ? @"trollstore" : @"runtime",IGT(@"Registered environment tool"),@"hit",ts ? 12 : 15,IGF(@"%@\n%@\nAn installed tool does not prove an active jailbreak. Dopamine variants require path evidence.",identifier,path),NO,hint)];
@@ -200,6 +202,10 @@ static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray
         @"roothide":@[[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@".jbroot"],@"/usr/lib/.jbroot",@"/usr/lib/libroothide.dylib"],
         @"trollstore":@[@"/Applications/TrollStore.app",@"/Applications/TrollStoreLite.app"]};
     for (NSString *g in @[@"rootful",@"rootless",@"roothide",@"trollstore"]) for (NSString *p in paths[g]) AddPath(rows,p,g,[g isEqual:@"trollstore"] ? 12 : (([p isEqual:@"/var/jb"] || [p isEqual:@"/bin/bash"] || [p isEqual:@"/taurine"]) ? 20 : 35),enabled);
+    for (NSString *prefix in @[@"/Applications",@"/var/jb/Applications"]) for (NSString *app in @[@"Cydia.app",@"Sileo.app",@"Sileo-Nightly.app",@"Zebra.app"]) {
+        NSString *p=[prefix stringByAppendingPathComponent:app]; NSString *g=[prefix hasPrefix:@"/var/jb"] ? @"rootless" : @"rootful";
+        if (![paths[g] containsObject:p]) AddPath(rows,p,g,35,enabled);
+    }
     // ElleKit ships both rootful/rootless packages and compatibility symlinks.
     for (NSString *prefix in @[@"",@"/var/jb"]) for (NSString *artifact in @[@"/usr/lib/libellekit.dylib",@"/usr/lib/ellekit/libinjector.dylib",@"/usr/lib/ellekit/pspawn.dylib",@"/usr/libexec/ellekit/loader",@"/usr/lib/TweakInject.dylib",@"/usr/lib/TweakLoader.dylib",@"/usr/lib/libblackjack.dylib",@"/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate"]) {
         NSString *p=[prefix stringByAppendingString:artifact];
@@ -262,8 +268,9 @@ static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray
 #else
     d[@"binaryArchitecture"]=@"x86_64";
 #endif
-    return @{@"schema":@2,@"appVersion":@"1.1.0",@"language":IGCurrentLanguage(),@"timestamp":@([finish timeIntervalSince1970]),@"scanTime":[format stringFromDate:finish],@"scanDuration":@([finish timeIntervalSinceDate:start]),@"device":d,
+    NSDictionary *classification=IGClassification(rows);
+    return @{@"schema":@2,@"appVersion":@"1.2.0",@"appName":@"JailPrism",@"bundleIdentifier":NSBundle.mainBundle.bundleIdentifier ?: @"",@"language":IGCurrentLanguage(),@"timestamp":@([finish timeIntervalSince1970]),@"scanTime":[format stringFromDate:finish],@"scanDuration":@([finish timeIntervalSinceDate:start]),@"device":d,
              @"scanConfiguration":@{@"privateAPIEnabled":@(enabled),@"mode":enabled ? @"extended" : @"standard",@"privateOperationsAttempted":operations},
-             @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"groups":groupData},@"score":IGScore(rows),@"classification":IGClassification(rows),@"findings":rows};
+             @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"groups":groupData},@"score":IGScore(rows),@"classification":classification,@"simpleSummary":IGSummaryRows(rows,classification),@"findings":rows};
 }
 @end

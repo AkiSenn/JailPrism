@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleDisplayName</key><string>环境哨兵</string>
+<key>CFBundleDisplayName</key><string>JailPrism</string>
 <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
 <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-<key>CFBundleName</key><string>IOSGuard</string>
+<key>CFBundleName</key><string>JailPrism</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.1.0</string>
-<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleShortVersionString</key><string>1.2.0</string>
+<key>CFBundleVersion</key><string>3</string>
 <key>CFBundleLocalizations</key><array><string>en_US</string><string>zh_Hans_CN</string></array>
 <key>LSRequiresIPhoneOS</key><true/>
 <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>

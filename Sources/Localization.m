@@ -5,12 +5,13 @@ NSString *IGResolvedLanguage(NSArray<NSString *> *preferred, NSString *selection
     return [first hasPrefix:@"zh"] ? @"zh_Hans_CN" : @"en_US";
 }
 void IGRegisterSettings(void) {
-    [NSUserDefaults.standardUserDefaults registerDefaults:@{@"IGLanguage":@"system",@"IGPrivateAPIEnabled":@NO}];
+    [NSUserDefaults.standardUserDefaults registerDefaults:@{@"IGLanguage":@"system",@"IGPrivateAPIEnabled":@NO,@"IGProfessionalMode":@NO}];
 }
 NSString *IGCurrentLanguage(void) {
     return IGResolvedLanguage(NSLocale.preferredLanguages,[NSUserDefaults.standardUserDefaults stringForKey:@"IGLanguage"] ?: @"system");
 }
 BOOL IGPrivateAPIEnabled(void) { return [NSUserDefaults.standardUserDefaults boolForKey:@"IGPrivateAPIEnabled"]; }
+BOOL IGProfessionalModeEnabled(void) { return [NSUserDefaults.standardUserDefaults boolForKey:@"IGProfessionalMode"]; }
 NSString *IGText(NSString *key) {
     NSString *path = [NSBundle.mainBundle pathForResource:IGCurrentLanguage() ofType:@"lproj"];
     NSBundle *languageBundle = path ? [NSBundle bundleWithPath:path] : nil;
