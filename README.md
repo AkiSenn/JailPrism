@@ -13,7 +13,7 @@
 ![iOS](https://img.shields.io/badge/iOS-14.0%2B-007AFF?style=flat-square)
 ![Architecture](https://img.shields.io/badge/Architecture-arm64%20%7C%20arm64e-555555?style=flat-square)
 ![Objective-C](https://img.shields.io/badge/Language-Objective--C-438EFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.2.0-00A896?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.2.1-00A896?style=flat-square)
 [![Build](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml/badge.svg)](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml)
 
 [下载构建](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) · [使用指南](docs/USAGE.md) · [检测原理](docs/DETECTION.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/AkiSenn/JailPrism/issues)
@@ -109,7 +109,7 @@ Windows 用户可通过 GitHub Actions 编译，无需在本机安装 Xcode。CI
 
 ## 致谢
 
-<img src="Sources/Assets.xcassets/OpenAI-mark.imageset/OpenAI-mark.png" width="32" alt="OpenAI 图标">
+<img src="Artwork/OpenAI-mark.png" width="32" alt="OpenAI 图标">
 
 - [Codex](https://github.com/openai/codex)
 - GPT-6.1 Sol

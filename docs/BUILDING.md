@@ -73,7 +73,7 @@ python scripts/check_localizations.py
 | 评分与设置回归 | URL 分类、评分上限、类型证据、名称去重、语言映射、专业／私有开关默认关闭及偏好保留 |
 | 设备包 | arm64／arm64e、最低 iOS 14.0、两个切片均无 `LC_CODE_SIGNATURE` |
 | 签名资源 | 无 `_CodeSignature`、描述文件及内嵌 entitlement |
-| 模拟器 | 语言、普通／专业主页、扩展模式、设置与致谢页、名称换行示例 |
+| 模拟器 | 语言、普通／专业主页、扩展模式、中英文设置页、名称换行示例 |
 
 模拟器检查确认应用进程存活，并验证报告结构、设备信息、时间字段和模式开关。`scanConfiguration.privateOperationsAttempted` 在标准模式为空，扩展模式记录已尝试的操作。
 

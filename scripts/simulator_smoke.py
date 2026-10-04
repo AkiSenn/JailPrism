@@ -7,16 +7,16 @@ devices=json.loads(run('xcrun','simctl','list','devices','available','--json'))[
 choices=[d for runtime,items in devices.items() if 'iOS' in runtime for d in items if d['name'].startswith('iPhone')]
 assert choices, 'No iPhone simulator available'
 device=choices[0]['udid']; app='com.akisenn.JailPrism'
-# name, system languages, manual selection, private, professional, settings, preview, credits
+# name, system languages, manual selection, private, professional, settings, preview
 cases=[
-    ('normal-english','(en-US)','system',False,False,False,False,False),
-    ('normal-chinese','(zh-Hant-TW)','system',False,False,False,False,False),
-    ('professional-chinese','(en-US)','zh_Hans_CN',False,True,False,False,False),
-    ('settings-english','(zh-Hant-HK)','en_US',False,False,True,False,False),
-    ('extended-chinese','(en-US)','zh_Hans_CN',True,True,False,False,False),
-    ('normal-preview','(zh-Hant-HK)','system',False,False,False,True,False),
-    ('professional-preview','(zh-Hans-CN)','system',False,True,False,True,False),
-    ('credits-chinese','(zh-Hant-TW)','system',False,False,True,False,True)
+    ('normal-english','(en-US)','system',False,False,False,False),
+    ('normal-chinese','(zh-Hant-TW)','system',False,False,False,False),
+    ('professional-chinese','(en-US)','zh_Hans_CN',False,True,False,False),
+    ('settings-english','(zh-Hant-HK)','en_US',False,False,True,False),
+    ('extended-chinese','(en-US)','zh_Hans_CN',True,True,False,False),
+    ('normal-preview','(zh-Hant-HK)','system',False,False,False,True),
+    ('professional-preview','(zh-Hans-CN)','system',False,True,False,True),
+    ('settings-chinese','(zh-Hant-TW)','system',False,False,True,False)
 ]
 results=[]
 try:
@@ -25,7 +25,7 @@ try:
     run('xcrun','simctl','install',device,'build/simulator/Build/Products/Release-iphonesimulator/JailPrism.app')
     container=Path(run('xcrun','simctl','get_app_container',device,app,'data'))
     report_path=container/'Documents'/'smoke-report.json'
-    for name,languages,selection,private,professional,settings,preview,credits in cases:
+    for name,languages,selection,private,professional,settings,preview in cases:
         subprocess.run(['xcrun','simctl','terminate',device,app],check=False,timeout=30)
         report_path.unlink(missing_ok=True)
         args=['--smoke-report','-AppleLanguages',languages,'-IGLanguage',selection]
@@ -33,7 +33,6 @@ try:
         if professional: args+=['-IGProfessionalMode','YES']
         if settings: args+=['--smoke-settings']
         if preview: args+=['--smoke-fixture']
-        if credits: args+=['--smoke-credits']
         launch=run('xcrun','simctl','launch',device,app,*args); pid=launch.rsplit(':',1)[1].strip()
         deadline=time.monotonic()+90
         while not report_path.exists() and time.monotonic()<deadline: time.sleep(1)
@@ -43,7 +42,7 @@ try:
         report=json.loads(report_path.read_text())
         Path(f'dist/simulator-{name}-report.json').write_bytes(report_path.read_bytes())
         expected='en_US' if name in ('normal-english','settings-english') else 'zh_Hans_CN'
-        assert report['appVersion']=='1.2.0' and report['schema']==2
+        assert report['appVersion']=='1.2.1' and report['schema']==2
         assert report['appName']=='JailPrism' and report['bundleIdentifier']==app
         assert report['language']==expected
         assert report['presentationMode']==('professional' if professional else 'normal')
