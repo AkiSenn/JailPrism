@@ -269,7 +269,7 @@ static void PrivateChecks(NSMutableArray *rows,NSDictionary *urls,NSMutableArray
     d[@"binaryArchitecture"]=@"x86_64";
 #endif
     NSDictionary *classification=IGClassification(rows);
-    return @{@"schema":@2,@"appVersion":@"1.2.1",@"appName":@"JailPrism",@"bundleIdentifier":NSBundle.mainBundle.bundleIdentifier ?: @"",@"language":IGCurrentLanguage(),@"timestamp":@([finish timeIntervalSince1970]),@"scanTime":[format stringFromDate:finish],@"scanDuration":@([finish timeIntervalSinceDate:start]),@"device":d,
+    return @{@"schema":@2,@"appVersion":@"1.2.2",@"appName":@"JailPrism",@"bundleIdentifier":NSBundle.mainBundle.bundleIdentifier ?: @"",@"language":IGCurrentLanguage(),@"timestamp":@([finish timeIntervalSince1970]),@"scanTime":[format stringFromDate:finish],@"scanDuration":@([finish timeIntervalSinceDate:start]),@"device":d,
              @"scanConfiguration":@{@"privateAPIEnabled":@(enabled),@"mode":enabled ? @"extended" : @"standard",@"privateOperationsAttempted":operations},
              @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"groups":groupData},@"score":IGScore(rows),@"classification":classification,@"simpleSummary":IGSummaryRows(rows,classification),@"findings":rows};
 }

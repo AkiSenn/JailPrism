@@ -27,7 +27,7 @@
 "Language" = "语言";
 "Extended environment checks" = "扩展环境检测";
 "Follow system" = "跟随系统";
-"Off by default. For certificate or TrollStore installations: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding." = "默认关闭。供证书或巨魔安装用户使用：尝试私有 URL 处理者、应用注册、沙盒、守护进程与内核检测。开关不会授予权限，也不能保证绕过越狱隐藏。";
+"Off by default. For installations using iOS enterprise certificate signing or TrollStore: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding." = "默认关闭。供 iOS 企业证书签名或巨魔安装用户使用：尝试私有 URL 处理者、应用注册、沙盒、守护进程与内核检测。开关不会授予权限，也不能保证绕过越狱隐藏。";
 "Use private APIs" = "使用私有 API";
 "Comprehensive read-only inspection" = "全面只读环境检测";
 "Environment Guard" = "环境哨兵";

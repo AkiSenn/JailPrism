@@ -27,7 +27,7 @@
 "Language" = "Language";
 "Extended environment checks" = "Extended environment checks";
 "Follow system" = "Follow system";
-"Off by default. For certificate or TrollStore installations: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding." = "Off by default. For certificate or TrollStore installations: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding.";
+"Off by default. For installations using iOS enterprise certificate signing or TrollStore: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding." = "Off by default. For installations using iOS enterprise certificate signing or TrollStore: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding.";
 "Use private APIs" = "Use private APIs";
 "Comprehensive read-only inspection" = "Comprehensive read-only inspection";
 "Environment Guard" = "Environment Guard";

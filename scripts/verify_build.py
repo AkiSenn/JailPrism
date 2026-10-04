@@ -7,7 +7,7 @@ archs = subprocess.check_output(['lipo','-archs',str(exe)],text=True).strip().sp
 assert set(archs) == {'arm64','arm64e'}, archs
 assert info['MinimumOSVersion'] == '14.0', info['MinimumOSVersion']
 assert info['CFBundleIdentifier'] == 'com.akisenn.JailPrism'
-assert info['CFBundleDisplayName'] == 'JailPrism' and info['CFBundleShortVersionString'] == '1.2.1'
+assert info['CFBundleDisplayName'] == 'JailPrism' and info['CFBundleShortVersionString'] == '1.2.2'
 assert all((app/f'{locale}.lproj'/'Localizable.strings').exists() for locale in ('en_US','zh_Hans_CN'))
 load = subprocess.check_output(['xcrun','vtool','-show-build',str(exe)],text=True)
 minimums = re.findall(r'minos\s+([\d.]+)',load)

@@ -42,7 +42,7 @@ try:
         report=json.loads(report_path.read_text())
         Path(f'dist/simulator-{name}-report.json').write_bytes(report_path.read_bytes())
         expected='en_US' if name in ('normal-english','settings-english') else 'zh_Hans_CN'
-        assert report['appVersion']=='1.2.1' and report['schema']==2
+        assert report['appVersion']=='1.2.2' and report['schema']==2
         assert report['appName']=='JailPrism' and report['bundleIdentifier']==app
         assert report['language']==expected
         assert report['presentationMode']==('professional' if professional else 'normal')
