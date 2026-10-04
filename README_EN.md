@@ -39,11 +39,11 @@ The app uses UIKit and Objective-C without third-party code dependencies. Detect
   <tr>
     <td align="center"><img src="docs/images/results.png" width="220" alt="Normal mode: device information, score, environments and aligned name lists"></td>
     <td align="center"><img src="docs/images/professional.png" width="220" alt="Professional mode: checks, evidence, weights and technical notes"></td>
-    <td align="center"><img src="docs/images/settings.png" width="220" alt="Settings: language, professional mode and an independent private API switch"></td>
+    <td align="center"><img src="docs/images/settings-en.png" width="220" alt="English settings: language, professional mode and an independent private API switch"></td>
   </tr>
 </table>
 
-These simulator screenshots show the Chinese interface; English is also available in the app. The normal-mode screenshot uses explicitly marked UI fixture data to illustrate multiline names. The professional-mode screenshot uses actual simulator results, where physical-device checks are unknown. Screenshots do not demonstrate detection accuracy on a real device.
+These simulator screenshots show the main pages in Chinese and the settings page in English. The normal-mode screenshot uses explicitly marked UI fixture data to illustrate multiline names. The professional-mode screenshot uses actual simulator results, where physical-device checks are unknown. Screenshots do not demonstrate detection accuracy on a real device.
 
 ## Features
 
