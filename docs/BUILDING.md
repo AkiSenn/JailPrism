@@ -2,6 +2,8 @@
 
 [返回项目首页](../README.md) · [使用指南](USAGE.md) · [检测原理](DETECTION.md)
 
+[English](en/BUILDING.md)
+
 ## 项目结构
 
 ```text
@@ -38,6 +40,12 @@ Windows 用户可以直接使用 [Build unsigned JailPrism IPA](https://github.c
 | `*build.log` | 设备和模拟器编译日志 |
 
 失败的运行也会上传已生成的日志或产物。下载可安装包时应选择**整体运行成功**的构建。
+
+## GitHub Releases
+
+已验证的构建也可发布到 [Releases](https://github.com/AkiSenn/JailPrism/releases)，直接提供版本化的未签名 IPA、匹配该文件名的 `SHA256SUMS.txt`、`build-metadata.json` 和模拟器检查结果。发行版附件不受 Actions 的 30 天保留期限影响。
+
+创建发行版时先核对版本、双架构、未签名状态与 SHA-256；附件应来自成功完成的云编译。若版本标签包含后续文档提交，应确认应用源代码和构建配置与已验证的构建提交一致。当前构建 workflow 上传 Actions 产物；发行版由维护者单独发布。
 
 ## 本地生成工程
 

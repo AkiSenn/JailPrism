@@ -1,5 +1,7 @@
 > **本项目由 AI 生成。** 如果不喜欢 AI 生成的软件，请勿使用。检测结果仅供参考，可能存在误报或漏检，无法保证识别所有隐藏环境。
 
+**简体中文（默认）** · [English](README_EN.md)
+
 <div align="center">
 
 <img src="Artwork/AppIcon-white.png" width="112" alt="JailPrism 应用图标">
@@ -13,10 +15,10 @@
 ![iOS](https://img.shields.io/badge/iOS-14.0%2B-007AFF?style=flat-square)
 ![Architecture](https://img.shields.io/badge/Architecture-arm64%20%7C%20arm64e-555555?style=flat-square)
 ![Objective-C](https://img.shields.io/badge/Language-Objective--C-438EFF?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.2.1-00A896?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.2.2-00A896?style=flat-square)
 [![Build](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml/badge.svg)](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml)
 
-[下载构建](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) · [使用指南](docs/USAGE.md) · [检测原理](docs/DETECTION.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/AkiSenn/JailPrism/issues)
+[下载发行版](https://github.com/AkiSenn/JailPrism/releases/latest) · [使用指南](docs/USAGE.md) · [检测原理](docs/DETECTION.md) · [更新记录](CHANGELOG.md) · [问题反馈](https://github.com/AkiSenn/JailPrism/issues)
 
 </div>
 
@@ -62,9 +64,9 @@ JailPrism 在设备上检查可见的文件、URL、注入库、进程身份与�
 
 ## 下载与安装
 
-1. 打开 [GitHub Actions 构建页面](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml)，选择成功完成的运行。
-2. 下载 **Artifacts** 中的 `JailPrism-unsigned-iOS14-arm64-arm64e`。
-3. 解压 ZIP，找到 `JailPrism-unsigned.ipa`，通过 TrollStore 安装。
+1. 打开 [GitHub Releases 发行版页面](https://github.com/AkiSenn/JailPrism/releases/latest)。
+2. 在 **Assets** 中直接下载 `JailPrism-<版本>-unsigned.ipa`。
+3. 将 IPA 分享给 TrollStore 安装；同页提供 `SHA256SUMS.txt` 和构建信息供核对。
 4. 启动应用自动检测；点击右上角齿轮调整语言与私有 API 设置。
 
 | 项目 | 要求 |
@@ -75,7 +77,7 @@ JailPrism 在设备上检查可见的文件、URL、注入库、进程身份与�
 | Bundle ID | `com.akisenn.JailPrism` |
 | 安装方式 | TrollStore；其支持的系统范围和安装权限由安装器决定 |
 
-构建产物保留 30 天。下载 Actions 产物需要登录有仓库访问权限的 GitHub 账户；过期后可重新构建。完整操作说明见[使用指南](docs/USAGE.md)。
+公有仓库的发行版附件可直接下载。也可在 [GitHub Actions](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) 中下载成功运行的 `JailPrism-unsigned-iOS14-arm64-arm64e` ZIP：解压后使用 `JailPrism-unsigned.ipa`。Actions 产物保留 30 天，需要登录 GitHub；发行版附件不受该保留期限影响。完整操作说明见[使用指南](docs/USAGE.md)。
 
 ## 如何理解结果
 

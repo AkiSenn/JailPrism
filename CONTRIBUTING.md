@@ -2,16 +2,18 @@
 
 [返回项目首页](README.md) · [构建说明](docs/BUILDING.md)
 
+[English](docs/en/CONTRIBUTING.md)
+
 ## 反馈漏检、误报或崩溃
 
 请在 [Issues](https://github.com/AkiSenn/JailPrism/issues) 中说明复现步骤，并提供以下信息：
 
 | 信息 | 示例 |
 | :--- | :--- |
-| 应用版本 | 1.2.0 |
+| 应用版本 | 1.2.2 |
 | 设备与系统 | iPhone XR / iOS 14.8 |
 | 越狱工具与版本 | Taurine、unc0ver、Dopamine 或 RootHide 变体 |
-| 安装方式 | TrollStore 或证书安装 |
+| 安装方式 | TrollStore 或企业内部分发（In-House） |
 | 隐藏与注入配置 | Shadow、Choicy、是否允许向检测器注入 |
 | 私有 API | 开启或关闭 |
 | 专业用户模式 | 开启或关闭 |

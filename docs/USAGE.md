@@ -2,11 +2,15 @@
 
 [返回项目首页](../README.md) · [检测原理](DETECTION.md) · [构建说明](BUILDING.md)
 
+[English](en/USAGE.md)
+
 ## 安装
 
-1. 在 [GitHub Actions](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) 选择成功完成的运行。
-2. 下载 `JailPrism-unsigned-iOS14-arm64-arm64e` 构建产物并解压。
-3. 将 `JailPrism-unsigned.ipa` 分享给 TrollStore 安装。
+1. 打开 [GitHub Releases](https://github.com/AkiSenn/JailPrism/releases/latest)。
+2. 直接下载 Assets 中的 `JailPrism-<版本>-unsigned.ipa`，可用同页的 `SHA256SUMS.txt` 核对完整性。
+3. 将 IPA 分享给 TrollStore 安装。
+
+如需最新开发构建，也可在 [GitHub Actions](https://github.com/AkiSenn/JailPrism/actions/workflows/build.yml) 选择整体成功的运行，下载 `JailPrism-unsigned-iOS14-arm64-arm64e` ZIP，解压后安装 `JailPrism-unsigned.ipa`。
 
 应用最低支持 iOS 14.0，IPA 包含 arm64 与 arm64e。应用支持范围与 TrollStore 可安装范围分别由应用和安装器决定；并非所有 iOS 14+ 系统都支持 TrollStore。
 
@@ -68,7 +72,7 @@
 | 标准检测 | 公开文件与 URL 查询、进程身份、dyld 镜像、函数来源及运行环境 |
 | 扩展检测 | 标准检测，加上私有 URL 处理者、工具注册、随机引导目录、权限与沙盒查询、守护进程、Mach 服务和只读 ARM64 内核探测 |
 
-供证书或 TrollStore 安装用户选择。开启开关不会授予额外权限，也不能保证绕过 Shadow、Choicy 或 RootHide 的隐藏机制。
+供企业内部分发（In-House）或 TrollStore 安装用户选择。英文使用 Apple 的 [In-House (Enterprise) distribution](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles) 称呼，中文对应[企业内部分发](https://developer.apple.com/cn/business/get-started/)。开启开关不会授予额外权限，也不能保证绕过 Shadow、Choicy 或 RootHide 的隐藏机制。
 
 关闭时扩展项与原始 SVC 均不调用，相关项显示「已跳过」。权限不足或私有接口不可用时显示「不可判定」。两种状态都不会被当作「未命中」。
 

@@ -2,6 +2,8 @@
 
 [返回项目首页](../README.md) · [使用指南](USAGE.md) · [构建说明](BUILDING.md)
 
+[English](en/DETECTION.md)
+
 ## 环境覆盖
 
 | 环境／框架 | 主要证据 |
@@ -105,7 +107,7 @@ Shadow 可过滤路径、URL、进程及系统调用；Choicy 可关闭注入。
 
 未签名 IPA 无法预置生效 entitlement，读取能力取决于安装器配置。私有 API 开关不会授予额外权限。`Sources/Entitlements.plist` 仅作参考，不参与签名或打包。
 
-「完美」只表示当前已启用的可见检查没有证据或错误。模拟器只能验证启动、界面、设置与报告；真机检测项在模拟器中统一不可判定、权重为 0。1.1.0 尚未在 iPhone XR、iOS 14.8、Taurine、Shadow + Choicy 的组合上实测。
+「完美」只表示当前已启用的可见检查没有证据或错误。模拟器只能验证启动、界面、设置与报告；真机检测项在模拟器中统一不可判定、权重为 0。当前版本尚未在 iPhone XR、iOS 14.8、Taurine、Shadow + Choicy 的组合上实测。
 
 ## 参考来源
 

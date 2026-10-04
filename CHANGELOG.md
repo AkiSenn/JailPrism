@@ -2,6 +2,14 @@
 
 [返回项目首页](README.md)
 
+[English](docs/en/CHANGELOG.md)
+
+## 1.2.2 · 2026-10-04
+
+- 私有 API 设置说明采用 Apple 官方称呼：企业内部分发（In-House）／In-House (Enterprise) distribution。
+- 新增英文首页、使用指南、检测原理、构建说明、贡献指南及更新记录；项目默认首页继续使用中文。
+- 通过 GitHub Releases 提供经过验证的未签名 IPA 与校验文件。
+
 ## 1.2.1 · 2026-10-04
 
 - 移除设置页语言列表下方的系统语言映射说明，保留「跟随系统」选项及自动选择行为。
