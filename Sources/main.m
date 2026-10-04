@@ -33,7 +33,7 @@ static NSString *GroupTitle(NSString *g) {
 - (NSString *)tableView:(UITableView *)t titleForFooterInSection:(NSInteger)s {
     if (s==0) return nil;
     if (s==1) return IGT(@"Normal mode is the default: device information, score and detected environment. Professional mode shows every check and all technical notes. This switch changes presentation only.");
-    if (s==2) return IGT(@"Off by default. For installations using iOS enterprise certificate signing or TrollStore: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding.");
+    if (s==2) return IGT(@"Off by default. For apps installed through In-House (Enterprise) distribution or TrollStore: attempts private URL handler, registry, sandbox, daemon and kernel checks. The switch grants no privileges and cannot guarantee bypassing jailbreak hiding.");
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)t cellForRowAtIndexPath:(NSIndexPath *)p {
