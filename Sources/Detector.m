@@ -12,6 +12,7 @@
 #import <pwd.h>
 #import <grp.h>
 #import <errno.h>
+#import <TargetConditionals.h>
 #if __has_feature(ptrauth_calls)
 #import <ptrauth.h>
 #endif
@@ -278,9 +279,25 @@ static BOOL InjectedPath(NSString *path) {
     // Architecture is reported from our Mach-O slice, not device marketing names.
     const struct mach_header *header = _dyld_get_image_header(0);
     NSString *arch = header && (header->cpusubtype & ~CPU_SUBTYPE_MASK) == CPU_SUBTYPE_ARM64E ? @"arm64e" : @"arm64";
+#if TARGET_OS_SIMULATOR
+    // Simulator credentials, paths and libraries belong to macOS, not a physical iOS device.
+    NSMutableArray *simulatorRows = [NSMutableArray new];
+    for (NSDictionary *row in rows) {
+        NSMutableDictionary *entry = row.mutableCopy;
+        if (![row[@"group"] isEqual:@"observer"]) {
+            entry[@"status"] = @"unknown";
+            entry[@"weight"] = @0;
+            entry[@"jailbreakEvidence"] = @NO;
+            entry[@"detail"] = [@"模拟器观测值，不用于真机评分。\n" stringByAppendingString:row[@"detail"]];
+        }
+        [simulatorRows addObject:entry];
+    }
+    rows = simulatorRows;
+    [rows addObject:Finding(@"observer:simulator",@"observer",@"模拟器检测限制",@"unknown",0,@"当前为 iOS 模拟器。macOS 的 shell、用户组和挂载状态不能用作真机越狱证据；全部设备检测项标记不可判定。",NO)];
+#endif
     NSDictionary *score = IGScore(rows);
     return @{@"schemaVersion":@1,@"appVersion":@"1.0.0",@"timestamp":@([[NSDate date] timeIntervalSince1970]),
-             @"device":@{@"model":UIDevice.currentDevice.model,@"system":UIDevice.currentDevice.systemVersion,@"binaryArchitecture":arch},
+             @"device":@{@"model":UIDevice.currentDevice.model,@"system":UIDevice.currentDevice.systemVersion,@"binaryArchitecture":arch,@"simulator":@(TARGET_OS_SIMULATOR)},
              @"identity":@{@"uid":@(uid),@"euid":@(euid),@"gid":@(gid),@"egid":@(egid),@"supplementaryGroups":groupData},
              @"score":score,@"findings":rows,
              @"limitations":@[@"隐藏层可拦截文件/注册/动态库查询；未命中不保证未越狱。",@"私有 API 在未来系统可能不可用；不可判定项阻止完美评级。",@"巨魔检测不等同越狱；本 App 主动声明的权限不扣分。",@"证据可表示残留，不能仅凭工具安装状态判断当前越狱运行状态。"]};

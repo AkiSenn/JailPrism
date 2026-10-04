@@ -36,6 +36,7 @@ jobs:
             dist/SHA256SUMS.txt
             dist/simulator.png
             dist/simulator-smoke.txt
+            dist/simulator-report.json
             build/*build.log
           if-no-files-found: error
           retention-days: 30

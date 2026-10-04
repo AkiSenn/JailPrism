@@ -37,6 +37,8 @@
 
 原生 UIKit，自适应深浅主题、动态字体、iPhone/iPad 分享面板。无第三方代码依赖。为巨魔环境 ad-hoc 签名并声明平台/无沙盒读取权限；TrollStore 安装时会重新签名。私有 API 始终检测类和 selector 是否存在，并捕获 Objective-C 异常，但不保证未来系统兼容性。
 
+模拟器观测的是 macOS 宿主环境，因此设备检测项统一标记不可判定、计 0 分，明确显示模拟器限制。CI 验证导出报告结构及该规则，防止宿主 shell/用户组被误判成真机越狱。应用图标使用用户指定图片经内置 ImageGen 仅将深色背景改为白色后的版本，完整图在 `Artwork/AppIcon-white.png`，打包图标尺寸在 asset catalog。
+
 ## 依据与限制
 
 - [TrollStore 源码与支持范围](https://github.com/opa334/TrollStore)：Shared/TSUtil.h 安装标记、Shared/TSUtil.m 容器扫描、TrollStore/Resources/Info.plist 的 URL/bundle ID。

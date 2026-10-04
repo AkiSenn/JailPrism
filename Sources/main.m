@@ -55,7 +55,7 @@ static NSString *GroupTitle(NSString *key) {
     [stack addArrangedSubview:[self label:level size:26 weight:UIFontWeightBold color:UIColor.labelColor]];
     NSString *subtitle = self.report ? [NSString stringWithFormat:@"%lu 项检查 · %@ 项命中 · %@ 项不可判定\n越狱结论：%@",
         (unsigned long)[self.report[@"findings"] count],score[@"hitCount"],score[@"unknownCount"],
-        [score[@"jailbreakEvidence"] boolValue] ? @"已见越狱／引导／注入痕迹" : @"当前可见范围未见明确越狱痕迹"] : @"正在汇总路径、URL、用户组与运行环境。";
+        [self.report[@"device"][@"simulator"] boolValue] ? @"模拟器不判定真机环境" : ([score[@"jailbreakEvidence"] boolValue] ? @"已见越狱／引导／注入痕迹" : @"当前可见范围未见明确越狱痕迹")] : @"正在汇总路径、URL、用户组与运行环境。";
     [stack addArrangedSubview:[self label:subtitle size:14 weight:UIFontWeightRegular color:UIColor.secondaryLabelColor]];
     [stack addArrangedSubview:[self label:@"完美：100 分且无不可判定项\n疑似：71–99 分，或存在不可判定项\n异常环境：0–70 分\n巨魔证据最多扣 15 分，不单独认定越狱。" size:13 weight:UIFontWeightRegular color:UIColor.secondaryLabelColor]];
     [stack addArrangedSubview:self.filter];
@@ -79,6 +79,12 @@ static NSString *GroupTitle(NSString *key) {
                 self.report = report; self.scanning = NO;
                 self.navigationItem.leftBarButtonItem.enabled = YES; self.navigationItem.rightBarButtonItem.enabled = YES;
                 [self rebuild];
+#if TARGET_OS_SIMULATOR
+                if ([NSProcessInfo.processInfo.arguments containsObject:@"--smoke-report"]) {
+                    NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:NULL];
+                    [data writeToFile:[NSHomeDirectory() stringByAppendingPathComponent:@"Documents/smoke-report.json"] atomically:YES];
+                }
+#endif
             });
         }
     });
