@@ -1,0 +1,41 @@
+name: Build IOSGuard IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Policy regressions, arm64 + arm64e build, signature checks, IPA
+        run: bash scripts/build.sh
+      - name: Build simulator for smoke test
+        run: |
+          SIM_ARCH=$(uname -m)
+          xcodebuild -project IOSGuard.xcodeproj -scheme IOSGuard -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/simulator ARCHS="$SIM_ARCH" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_ENTITLEMENTS= build > build/simulator-build.log 2>&1 \
+            || { tail -100 build/simulator-build.log; exit 1; }
+      - name: Launch and capture simulator UI
+        run: python3 scripts/simulator_smoke.py
+      - name: SHA256
+        run: shasum -a 256 dist/IOSGuard.ipa > dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: IOSGuard-iOS14-arm64-arm64e
+          path: |
+            dist/IOSGuard.ipa
+            dist/build-metadata.json
+            dist/signed-entitlements.plist
+            dist/SHA256SUMS.txt
+            dist/simulator.png
+            dist/simulator-smoke.txt
+            build/*build.log
+          if-no-files-found: error
+          retention-days: 30

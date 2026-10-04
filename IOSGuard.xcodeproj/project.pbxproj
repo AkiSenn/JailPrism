@@ -1,0 +1,29 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+6C36FFE920F24CEDB7CFDBFC = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Sources/Assets.xcassets"; sourceTree = SOURCE_ROOT; };
+222F0DBFFE5EB23DCD3FD16F = { isa = PBXBuildFile; fileRef = 6C36FFE920F24CEDB7CFDBFC; };
+72A483903649F5B779718D74 = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Sources/Detector.h"; sourceTree = SOURCE_ROOT; };
+08FCD045D4BD7E81A516AFA6 = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "Sources/Detector.m"; sourceTree = SOURCE_ROOT; };
+3926E24BE897E40ACDF5AF88 = { isa = PBXBuildFile; fileRef = 08FCD045D4BD7E81A516AFA6; };
+4BCF048ABA4BE5720C6C9066 = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Sources/Entitlements.plist"; sourceTree = SOURCE_ROOT; };
+68E77A9D7BC78A97D4F4E27B = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Sources/Info.plist"; sourceTree = SOURCE_ROOT; };
+7ED00D05AFB9A9C2C4A068FB = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "Sources/main.m"; sourceTree = SOURCE_ROOT; };
+03F5FD748F2B82BDA396CB0B = { isa = PBXBuildFile; fileRef = 7ED00D05AFB9A9C2C4A068FB; };
+03BD6D88D50277B5D7127F3C = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Sources/Policy.h"; sourceTree = SOURCE_ROOT; };
+D3DE3DAE09F874A0A9761776 = { isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "Sources/Policy.m"; sourceTree = SOURCE_ROOT; };
+3011DDC1C7C8CFF8D805D0EC = { isa = PBXBuildFile; fileRef = D3DE3DAE09F874A0A9761776; };
+38A007151ABE87CC01A5B6E9 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = IOSGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+FBDC4F23F93125BBEEAE800C = { isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9,); name = Products; sourceTree = "<group>"; };
+DC76E9F0C0006E8F919E0C51 = { isa = PBXGroup; children = (6C36FFE920F24CEDB7CFDBFC,72A483903649F5B779718D74,08FCD045D4BD7E81A516AFA6,4BCF048ABA4BE5720C6C9066,68E77A9D7BC78A97D4F4E27B,7ED00D05AFB9A9C2C4A068FB,03BD6D88D50277B5D7127F3C,D3DE3DAE09F874A0A9761776,FBDC4F23F93125BBEEAE800C,); sourceTree = "<group>"; };
+BCE16DD0260827ECF338C787 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (3926E24BE897E40ACDF5AF88,03F5FD748F2B82BDA396CB0B,3011DDC1C7C8CFF8D805D0EC,); runOnlyForDeploymentPostprocessing = 0; };
+7561BFB015D8F536760CB671 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+0189424A5A60FED329FA868E = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (222F0DBFFE5EB23DCD3FD16F,); runOnlyForDeploymentPostprocessing = 0; };
+AB52CB08E0FDF02BF6C67C33 = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 14.0; SDKROOT = iphoneos; GCC_WARN_INHIBIT_ALL_WARNINGS = NO; GCC_WARN_64_TO_32_BIT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; GCC_OPTIMIZATION_LEVEL = 0; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Debug; };
+59E1BEE911F66DA37FEBACDC = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = IOSGuard; PRODUCT_BUNDLE_IDENTIFIER = com.akisen.iosguard; INFOPLIST_FILE = Sources/Info.plist; CODE_SIGN_ENTITLEMENTS = Sources/Entitlements.plist; CODE_SIGNING_ALLOWED = NO; TARGETED_DEVICE_FAMILY = "1,2"; ARCHS = "arm64 arm64e"; ONLY_ACTIVE_ARCH = NO; ENABLE_BITCODE = NO; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; OTHER_LDFLAGS = "-framework UIKit -framework Foundation -framework Security"; }; name = Debug; };
+5283471FF90C511CFE244FFF = { isa = XCBuildConfiguration; buildSettings = { CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 14.0; SDKROOT = iphoneos; GCC_WARN_INHIBIT_ALL_WARNINGS = NO; GCC_WARN_64_TO_32_BIT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; GCC_OPTIMIZATION_LEVEL = s; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; }; name = Release; };
+F4C425279CD5DDD18FD6DC6D = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_NAME = IOSGuard; PRODUCT_BUNDLE_IDENTIFIER = com.akisen.iosguard; INFOPLIST_FILE = Sources/Info.plist; CODE_SIGN_ENTITLEMENTS = Sources/Entitlements.plist; CODE_SIGNING_ALLOWED = NO; TARGETED_DEVICE_FAMILY = "1,2"; ARCHS = "arm64 arm64e"; ONLY_ACTIVE_ARCH = NO; ENABLE_BITCODE = NO; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; OTHER_LDFLAGS = "-framework UIKit -framework Foundation -framework Security"; }; name = Release; };
+640DC9EFD529235A8D9E2727 = { isa = XCConfigurationList; buildConfigurations = (AB52CB08E0FDF02BF6C67C33,5283471FF90C511CFE244FFF,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+976B52545947CA66FD9EF2A4 = { isa = XCConfigurationList; buildConfigurations = (59E1BEE911F66DA37FEBACDC,F4C425279CD5DDD18FD6DC6D,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+0E8A3AD980EC179856012B7E = { isa = PBXNativeTarget; buildConfigurationList = 976B52545947CA66FD9EF2A4; buildPhases = (BCE16DD0260827ECF338C787,7561BFB015D8F536760CB671,0189424A5A60FED329FA868E,); buildRules = (); dependencies = (); name = IOSGuard; productName = IOSGuard; productReference = 38A007151ABE87CC01A5B6E9; productType = "com.apple.product-type.application"; };
+98F54143AB4E86B28C3AFEE0 = { isa = PBXProject; attributes = { LastUpgradeCheck = 1600; }; buildConfigurationList = 640DC9EFD529235A8D9E2727; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans",en,Base,); mainGroup = DC76E9F0C0006E8F919E0C51; productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E,); };
+}; rootObject = 98F54143AB4E86B28C3AFEE0; }
