@@ -216,7 +216,7 @@ static BOOL InjectedPath(NSString *path) {
         free(groups);
     } else [rows addObject:Finding(@"identity:groups",@"identity",@"附加用户组",@"unknown",0,@"组数量读取失败或超出合理范围。",NO)];
 
-    // Entitlements are observation context: this build intentionally requests an unsandboxed reader.
+    // Entitlements are observation context; the unsigned IPA carries none of its own.
     typedef CFTypeRef (*TaskCreate)(CFAllocatorRef);
     typedef CFTypeRef (*TaskValue)(CFTypeRef,CFStringRef,CFErrorRef *);
     TaskCreate create = (TaskCreate)dlsym(RTLD_DEFAULT,"SecTaskCreateFromSelf");
@@ -237,7 +237,7 @@ static BOOL InjectedPath(NSString *path) {
         }
         NSData *data = [NSJSONSerialization dataWithJSONObject:ents options:NSJSONWritingPrettyPrinted error:NULL];
         [rows addObject:Finding(@"observer:entitlements",@"observer",@"检测器自身权限",task ? @"info" : @"unknown",0,
-                               [NSString stringWithFormat:@"%@\n本构建为巨魔安装设计，主动声明的读取权限计 0 分，避免自测污染。",data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"不可用"],NO)];
+                               [NSString stringWithFormat:@"%@\n本 IPA 未签名，最终运行权限取决于安装器配置；自身权限仅作说明，不扣分。读取受限的项目标记不可判定。",data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"不可用"],NO)];
     } else [rows addObject:Finding(@"observer:entitlements",@"observer",@"检测器自身权限",@"unknown",0,@"SecTask 私有函数不可用。",NO)];
 
     NSMutableArray *loaded = [NSMutableArray new];

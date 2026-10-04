@@ -1,4 +1,4 @@
-name: Build IOSGuard IPA
+name: Build unsigned IOSGuard IPA
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Policy regressions, arm64 + arm64e build, signature checks, IPA
+      - name: Policy regressions, arm64 + arm64e build, verify unsigned IPA
         run: bash scripts/build.sh
       - name: Build simulator for smoke test
         run: |
@@ -24,15 +24,14 @@ jobs:
       - name: Launch and capture simulator UI
         run: python3 scripts/simulator_smoke.py
       - name: SHA256
-        run: shasum -a 256 dist/IOSGuard.ipa > dist/SHA256SUMS.txt
+        run: shasum -a 256 dist/IOSGuard-unsigned.ipa > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: IOSGuard-iOS14-arm64-arm64e
+          name: IOSGuard-unsigned-iOS14-arm64-arm64e
           path: |
-            dist/IOSGuard.ipa
+            dist/IOSGuard-unsigned.ipa
             dist/build-metadata.json
-            dist/signed-entitlements.plist
             dist/SHA256SUMS.txt
             dist/simulator.png
             dist/simulator-smoke.txt

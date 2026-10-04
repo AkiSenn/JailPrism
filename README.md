@@ -4,7 +4,7 @@
 
 ## 使用
 
-下载 Actions 的 `IOSGuard-iOS14-arm64-arm64e` 构建产物，解压后将 `IOSGuard.ipa` 分享给 TrollStore 安装。启动自动检测，点击「重新检测」刷新；筛选全部、命中、不可判定、用户组。右上角分享按钮导出 JSON 报告，包含原始证据、权重、分组扣分、关联抵扣、当前身份与检测限制。App 没有网络请求；报告只在主动分享时离开设备。
+下载 Actions 的 `IOSGuard-unsigned-iOS14-arm64-arm64e` 构建产物，解压后将 `IOSGuard-unsigned.ipa` 分享给 TrollStore 安装。交付 IPA 完全未签名，无签名资源、描述文件和内嵌 entitlement。启动自动检测，点击「重新检测」刷新；筛选全部、命中、不可判定、用户组。右上角分享按钮导出 JSON 报告，包含原始证据、权重、分组扣分、关联抵扣、当前身份与检测限制。App 没有网络请求；报告只在主动分享时离开设备。
 
 「用户组异常行为」在本版本指当前检测器进程的 root/非 mobile 身份、真实与有效 UID/GID 差异、wheel/root、daemon、admin 附加组，以及命中文件的拥有者；不是系统行为历史或其他应用的身份审计。正常的 root/mobile 账户存在不算异常。不执行提权、安装、删除、写入系统目录、打开巨魔安装 URL 或修改系统配置。
 
@@ -20,7 +20,7 @@
 
 独立显示越狱痕迹结论。TrollStore-only 最多扣 15 分，评级为疑似，不声明已越狱。工具 App 注册证据通常 15 分，不能说明当前已激活越狱；越狱专用路径通常 35 分；单独 `/var/jb` 链接或 `/bin/bash` 为 20 分，因为可能残留；随机 jbroot 名称为 15 分，有 dpkg/basebin 佐证才 40 分；注入库和函数来源为 35 分；root UID/GID 或 wheel/daemon 附加组 40 分，其他非 mobile 身份、身份差异或 admin 附加组 20 分；DYLD 环境变量/可写根 20 分，调试器 15 分。检测器自身的无沙盒/平台权限为预期观测配置，不计分；这些权限不会自动让 UID 变为 root。
 
-文件不存在为「未命中」；权限不足、私有 API 缺失、无有效注册列表或查询错误为「不可判定」，不伪装成通过。评分是透明的启发式规则，不是统计概率，也没有声称能绕过所有隐藏插件。
+文件不存在为「未命中」；权限不足、私有 API 缺失、无有效注册列表或查询错误为「不可判定」，不伪装成通过。评分是透明的启发式规则，不是统计概率，也没有声称能绕过所有隐藏插件。未签名包无法携带生效的 entitlement，安装后的最终权限由安装器决定；若没有无沙盒读取权限，部分文件和私有 API 检测可能不可判定。`Sources/Entitlements.plist` 仅保留为权限配置参考，不用于编译或打包签名。
 
 ## 检测范围
 
@@ -33,9 +33,9 @@
 
 ## 编译与验证
 
-`python scripts/generate_project.py` 可在 Windows 生成 Xcode 工程；macOS 上 `bash scripts/build.sh` 构建双架构 IPA。CI 运行独立 Foundation 评分与 URL 分类回归，验证 Mach-O 架构、最低系统、签名与声明权限，再构建模拟器、确认 App 启动后存活并截图。模拟器只验证启动/UI，真机各类越狱的准确率需安装实测；未进行真机验证时不能声称检测全部环境成功。
+`python scripts/generate_project.py` 可在 Windows 生成 Xcode 工程；macOS 上 `bash scripts/build.sh` 构建双架构未签名 IPA。关闭 Xcode 签名并禁止链接器生成 ad-hoc 签名；不会调用签名工具。CI 运行独立 Foundation 评分与 URL 分类回归，验证 Mach-O 架构、最低系统、两个切片均无 `LC_CODE_SIGNATURE`、App 无 `_CodeSignature` 和描述文件，再构建模拟器、确认 App 启动后存活并截图。模拟器只验证启动/UI，真机各类越狱的准确率需安装实测；未进行真机验证时不能声称检测全部环境成功。
 
-原生 UIKit，自适应深浅主题、动态字体、iPhone/iPad 分享面板。无第三方代码依赖。为巨魔环境 ad-hoc 签名并声明平台/无沙盒读取权限；TrollStore 安装时会重新签名。私有 API 始终检测类和 selector 是否存在，并捕获 Objective-C 异常，但不保证未来系统兼容性。
+原生 UIKit，自适应深浅主题、动态字体、iPhone/iPad 分享面板。无第三方代码依赖。按用户要求交付未签名 IPA，安装器自行完成安装处理。私有 API 始终检测类和 selector 是否存在，并捕获 Objective-C 异常，但不保证未来系统兼容性。
 
 模拟器观测的是 macOS 宿主环境，因此设备检测项统一标记不可判定、计 0 分，明确显示模拟器限制。CI 验证导出报告结构及该规则，防止宿主 shell/用户组被误判成真机越狱。应用图标使用用户指定图片经内置 ImageGen 仅将深色背景改为白色后的版本，完整图在 `Artwork/AppIcon-white.png`，打包图标尺寸在 asset catalog。
 
